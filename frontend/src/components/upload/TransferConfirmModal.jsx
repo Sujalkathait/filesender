@@ -3,8 +3,14 @@ import { Shield, X } from 'lucide-react';
 import { formatBytes } from '../../utils/format';
 
 export const formatExpiryLabel = (seconds) => {
-  const s = Math.round(seconds <= 1 ? seconds * 60 : seconds);
-  return `${s} seconds`;
+  const s = Math.round(seconds <= 1 && seconds > 0 ? seconds * 60 : seconds);
+  if (s < 60) return `${s} seconds`;
+  if (s === 60) return '60 seconds (1 min)';
+  if (s === 3600) return '60 minutes (1 hour)';
+  const mins = Math.floor(s / 60);
+  const remSec = s % 60;
+  if (remSec === 0) return `${mins} minute${mins > 1 ? 's' : ''} (${s}s)`;
+  return `${mins}m ${remSec}s (${s}s)`;
 };
 
 /**

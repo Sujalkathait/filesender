@@ -20,6 +20,7 @@ import { LocalFilePreviewModal } from '../components/upload/LocalFilePreviewModa
 import { FeatureGuideModal } from '../components/upload/FeatureGuideModal';
 import { ShareResultCard } from '../components/upload/ShareResultCard';
 import { SenderHistoryDashboard } from '../components/upload/SenderHistoryDashboard';
+import { QRCodeModal } from '../components/upload/QRCodeModal';
 
 /**
  * Upload Page Orchestrator Component
@@ -47,6 +48,7 @@ function UploadPage() {
   const [expiryHours, setExpiryHours] = useState(60);
   const [useP2P, setUseP2P] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const [qrModalItem, setQrModalItem] = useState(null);
 
   // Sender File Preview State
   const [previewFile, setPreviewFile] = useState(null);
@@ -445,6 +447,15 @@ function UploadPage() {
       {/* Sender History Dashboard */}
       <SenderHistoryDashboard
         activeTransferId={result?.fileId}
+        onSelectTransferForQR={(item) => setQrModalItem(item)}
+      />
+
+      <QRCodeModal
+        isOpen={Boolean(qrModalItem)}
+        onClose={() => setQrModalItem(null)}
+        transferCode={qrModalItem?.transferCode || qrModalItem?.fileId}
+        shareUrl={qrModalItem?.shareUrl}
+        fileName={qrModalItem?.fileName}
       />
     </div>
   );

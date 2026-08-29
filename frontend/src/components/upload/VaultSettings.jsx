@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
-import { Flame, Image as ImageIcon, Radio, Clock, HelpCircle, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Flame, Image as ImageIcon, Radio, Clock, HelpCircle, ChevronDown, ChevronUp, Info, ShieldCheck } from 'lucide-react';
+
+const EXPIRY_PRESETS = [
+  { value: 15, label: '15s', fullLabel: '15 seconds', hint: 'Ultra fast temporary transfer' },
+  { value: 30, label: '30s', fullLabel: '30 seconds', hint: 'Quick verification transfer' },
+  { value: 45, label: '45s', fullLabel: '45 seconds', hint: 'Fast temporary transfer' },
+  { value: 60, label: '1 min', fullLabel: '60 seconds (1 min)', hint: 'Standard recommended countdown' },
+  { value: 90, label: '1.5 min', fullLabel: '90 seconds (1.5 min)', hint: 'Medium duration transfer' },
+  { value: 120, label: '2 min', fullLabel: '2 minutes (120s)', hint: 'Extended duration transfer' },
+  { value: 180, label: '3 min', fullLabel: '3 minutes (180s)', hint: 'Maximum allowed countdown' },
+];
 
 /**
  * VaultSettings Component
- * Primary Responsibility: Handle security & privacy toggles: Burn-on-Read, Steganography, Direct P2P, and TTL expiry.
- * Note: Users never see download counts, download history, or internal transfer statistics.
+ * Primary Responsibility: Handle security & privacy toggles (Burn-on-Read, Steganography, Direct P2P)
+ * and code expiry countdown selection (15s up to 3 minutes).
  */
 export function VaultSettings({
   burnOnRead,
@@ -20,15 +30,25 @@ export function VaultSettings({
 }) {
   const [showBurnDetails, setShowBurnDetails] = useState(false);
 
+  const currentPreset = EXPIRY_PRESETS.find(p => p.value === expiryHours) || {
+    value: expiryHours,
+    label: `${expiryHours}s`,
+    fullLabel: `${expiryHours} seconds`,
+    hint: 'Custom countdown'
+  };
+
   return (
-    <div className="vault-settings">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h4 className="settings-heading" style={{ marginBottom: 0 }}>
-          Sharing &amp; Privacy Options
-        </h4>
+    <div className="vault-settings" role="region" aria-label="Privacy and Expiry Settings">
+      <div className="vault-settings-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ShieldCheck size={18} className="text-primary" />
+          <h4 className="settings-heading" style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
+            Sharing &amp; Privacy Options
+          </h4>
+        </div>
         <button
           type="button"
-          className="btn btn-ghost btn-sm"
+          className="btn btn-ghost btn-xs"
           onClick={onOpenGuide}
           style={{ fontSize: '0.775rem', gap: 4 }}
           aria-label="Open feature guide"
@@ -184,29 +204,101 @@ export function VaultSettings({
         </div>
       </div>
 
-      {/* Expiry Countdown selection (15s up to 3 min / 180s) */}
-      <div className="expiry-row">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Clock size={16} className="field-icon" />
-          <label htmlFor="expiry-select">Expiry Countdown</label>
+      {/* ── CODE EXPIRY COUNTDOWN SELECTION (15s to 3 min) ── */}
+      <div className="expiry-selection-box" style={{
+        marginTop: 14,
+        padding: '14px 16px',
+        background: 'var(--bg-surface, #ffffff)',
+        border: '1px solid var(--border-default, #e2e8f0)',
+        borderRadius: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={16} className="text-primary" />
+            <label htmlFor="expiry-select" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--fg-default)' }}>
+              Code Expiry Countdown
+            </label>
+          </div>
+          <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+            {currentPreset.label}
+          </span>
         </div>
-        <select
-          id="expiry-select"
-          value={expiryHours}
-          disabled={isTransferring}
-          onChange={(e) => setExpiryHours(Number(e.target.value))}
-          aria-label="Select code expiration time"
+
+        {/* Quick Selection Pills (15s up to 3 min) */}
+        <div
+          className="expiry-pills-row"
+          style={{
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            marginBottom: 10
+          }}
+          role="radiogroup"
+          aria-label="Expiry countdown options"
         >
-          <option value={15}>15 seconds</option>
-          <option value={30}>30 seconds</option>
-          <option value={45}>45 seconds</option>
-          <option value={60}>60 seconds (1 min)</option>
-          <option value={120}>2 minutes (120s)</option>
-          <option value={180}>3 minutes (Max - 180s)</option>
-        </select>
+          {EXPIRY_PRESETS.map((preset) => {
+            const isSelected = expiryHours === preset.value;
+            return (
+              <button
+                key={preset.value}
+                type="button"
+                className={`expiry-pill-btn ${isSelected ? 'expiry-pill-btn--active' : ''}`}
+                onClick={() => !isTransferring && setExpiryHours(preset.value)}
+                disabled={isTransferring}
+                style={{
+                  flex: '1 1 auto',
+                  minWidth: '58px',
+                  padding: '6px 10px',
+                  fontSize: '0.8rem',
+                  fontWeight: isSelected ? 600 : 500,
+                  borderRadius: '8px',
+                  border: `1px solid ${isSelected ? 'var(--accent, #0066ff)' : 'var(--border-default, #e2e8f0)'}`,
+                  background: isSelected ? 'var(--accent-subtle, #eff6ff)' : 'var(--bg-subtle, #f8fafc)',
+                  color: isSelected ? 'var(--accent, #0066ff)' : 'var(--fg-default)',
+                  cursor: isTransferring ? 'not-allowed' : 'pointer',
+                  transition: 'var(--transition-fast, all 0.15s ease)'
+                }}
+                aria-checked={isSelected}
+                role="radio"
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <select
+            id="expiry-select"
+            value={expiryHours}
+            disabled={isTransferring}
+            onChange={(e) => setExpiryHours(Number(e.target.value))}
+            aria-label="Select code expiration countdown"
+            style={{
+              padding: '6px 10px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-default, #e2e8f0)',
+              background: 'var(--bg-app, #ffffff)',
+              color: 'var(--fg-default)',
+              fontSize: '0.85rem',
+              flex: 1
+            }}
+          >
+            {EXPIRY_PRESETS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.fullLabel}
+              </option>
+            ))}
+          </select>
+
+          <span style={{ fontSize: '0.78rem', color: 'var(--fg-muted)', flex: '1 1 100%' }}>
+            ⏱ {currentPreset.hint}. Transfer code and file will automatically self-destruct once countdown reaches zero.
+          </span>
+        </div>
       </div>
     </div>
   );
 }
 
 export default VaultSettings;
+

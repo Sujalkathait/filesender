@@ -121,6 +121,9 @@ export function useEncryptAndSend(stateMachine) {
 
       const effectiveMaxDownloads = Number(maxDownloads);
 
+      const rawExp = Number(expiryHours) || 60;
+      const expirySecs = Math.round(rawExp <= 1 && rawExp > 0 ? rawExp * 3600 : rawExp);
+
       const uploadMetadata = {
         filename: uploadFileName,
         original_name: packaged.name,
@@ -130,8 +133,8 @@ export function useEncryptAndSend(stateMachine) {
         compressed: encrypted.compressed ? '1' : '0',
         max_downloads: effectiveMaxDownloads.toString(),
         burn_on_read: burnOnRead ? '1' : '0',
-        expiry_seconds: (expiryHours <= 1 ? Math.round(expiryHours * 60) : Math.round(expiryHours)).toString(),
-        expiry_hours: (expiryHours >= 15 ? (expiryHours / 3600).toFixed(6) : expiryHours.toString()),
+        expiry_seconds: expirySecs.toString(),
+        expiry_hours: (expirySecs / 3600).toFixed(6),
         sharing_mode: useSteganography && burnOnRead ? 'both' : useSteganography ? 'steganography' : burnOnRead ? 'burn_on_read' : 'standard',
         checksum: buildChunkMarker(encrypted.chunked),
         access_hash: await computeAccessProof(encrypted.password)

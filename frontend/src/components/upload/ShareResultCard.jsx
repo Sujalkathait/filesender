@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   CheckCircle2, Copy, Trash2, Plus, Flame, Key, Clock,
-  ShieldCheck, Share2, Eye, FileText, Check, Shield
+  ShieldCheck, Share2, Eye, FileText, Check, Shield, QrCode, Maximize2
 } from 'lucide-react';
 import { formatBytes } from '../../utils/format';
 import { copyToClipboard } from '../../utils/clipboard';
 import { createShareMessage } from '../../crypto';
 import { FileCategoryIcon } from '../common/FileCategoryIcon';
+import { QRCodeModal } from './QRCodeModal';
 
 /**
  * ShareResultCard Component
@@ -31,6 +33,7 @@ export function ShareResultCard({
 }) {
   const [now, setNow] = useState(Date.now());
   const [copiedShareMsg, setCopiedShareMsg] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -41,18 +44,27 @@ export function ShareResultCard({
 
   const isBurn = Boolean(result.burnOnRead ?? result.burn_on_read) || result.maxDownloads === 1;
   const expiresAtVal = result.expiresAt || result.expires_at;
+  const createdAtVal = result.createdAt || result.created_at;
   const expiresTimestamp = expiresAtVal ? new Date(expiresAtVal).getTime() : 0;
+  const createdTimestamp = createdAtVal ? new Date(createdAtVal).getTime() : 0;
   const remainingMillis = Math.max(0, expiresTimestamp - now);
   const totalSeconds = Math.floor(remainingMillis / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   const isExpired = remainingMillis <= 0;
 
+  const initialDuration = Math.max(
+    15,
+    expiresTimestamp && createdTimestamp && expiresTimestamp > createdTimestamp
+      ? Math.round((expiresTimestamp - createdTimestamp) / 1000)
+      : (Number(result.expiry_seconds) || Number(result.expiryHours) || 60)
+  );
+
   const handleShareMessage = async () => {
     const msg = createShareMessage({
       transferCode: result.transferCode,
       shareUrl,
-      expiryHours: 60,
+      expirySeconds: initialDuration,
       fileCount: result.fileCount || 1,
       totalSize: formatBytes(result.originalSize)
     });
@@ -67,7 +79,7 @@ export function ShareResultCard({
     const msg = createShareMessage({
       transferCode: result.transferCode,
       shareUrl,
-      expiryHours: 60,
+      expirySeconds: initialDuration,
       fileCount: result.fileCount || 1,
       totalSize: formatBytes(result.originalSize)
     });
@@ -141,18 +153,72 @@ export function ShareResultCard({
           )}
         </div>
 
-        {/* BOX 2: 10-DIGIT TRANSFER CODE */}
+        {/* BOX 2: 10-DIGIT TRANSFER CODE & SENDER QR */}
         <div className="dashboard-box box-transfer-code">
           <div className="dashboard-box-header">
             <div className="box-header-title">
               <Key size={16} className="box-header-icon" />
-              <span>2. Transfer Code</span>
+              <span>2. Transfer Code &amp; QR</span>
             </div>
             <span className="badge badge-emerald">10 Digits</span>
           </div>
           <div className="dashboard-code-display">
             <span className="dashboard-code-text">{result.transferCode}</span>
           </div>
+
+          {/* Sender QR Code Display */}
+          <div
+            className="sender-qr-inline-card"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '12px',
+              margin: '10px 0',
+              background: 'var(--bg-subtle, #f8fafc)',
+              borderRadius: '12px',
+              border: '1px solid var(--border-default, #e2e8f0)',
+              position: 'relative'
+            }}
+          >
+            <div
+              style={{
+                padding: '8px',
+                background: '#ffffff',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                cursor: 'pointer'
+              }}
+              onClick={() => setShowQRModal(true)}
+              title="Click to expand QR Code"
+            >
+              <QRCodeSVG
+                value={
+                  (shareUrl && shareUrl.startsWith('http'))
+                    ? shareUrl
+                    : (typeof window !== 'undefined'
+                        ? `${window.location.origin}/download?code=${encodeURIComponent(result.transferCode || result.fileId || '')}`
+                        : (result.transferCode || ''))
+                }
+                size={130}
+                bgColor="#ffffff"
+                fgColor="#0f172a"
+                level="H"
+                includeMargin={false}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => setShowQRModal(true)}
+              style={{ marginTop: 6, fontSize: '0.78rem', color: 'var(--accent, #0066ff)' }}
+              title="Expand QR Code full screen"
+            >
+              <QrCode size={13} /> View / Expand QR
+            </button>
+          </div>
+
           <div className="dashboard-code-actions-row" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -189,7 +255,7 @@ export function ShareResultCard({
             </button>
           </div>
           <span className="dashboard-box-hint">
-            Give this 10-digit code to recipient to unlock and receive the file.
+            Scan QR code or enter this 10-digit code on recipient device to receive file.
           </span>
         </div>
 
@@ -201,7 +267,7 @@ export function ShareResultCard({
               <span>3. Expiry Countdown</span>
             </div>
             <span className={`badge ${totalSeconds < 15 ? 'badge-amber' : 'badge-primary'}`}>
-              {isExpired ? 'Expired' : `${totalSeconds}s Left`}
+              {isExpired ? 'Expired' : totalSeconds >= 60 ? `${minutes}m ${seconds > 0 ? `${seconds}s ` : ''}Left` : `${totalSeconds}s Left`}
             </span>
           </div>
           <div className="dashboard-metric-hero">
@@ -213,13 +279,13 @@ export function ShareResultCard({
           <p className="dashboard-metric-subtext">
             {isExpired
               ? 'File expired & automatically erased from server.'
-              : `Auto-destructs strictly when countdown reaches zero.`}
+              : 'Auto-destructs strictly when countdown reaches zero.'}
           </p>
           <div className="dashboard-progress-track">
             <div
               className="dashboard-progress-fill"
               style={{
-                width: `${Math.max(0, Math.min(100, (totalSeconds / 180) * 100))}%`,
+                width: `${Math.max(0, Math.min(100, (totalSeconds / initialDuration) * 100))}%`,
                 backgroundColor: totalSeconds < 15 ? 'var(--warning-fg)' : 'var(--accent)'
               }}
             />
@@ -277,6 +343,14 @@ export function ShareResultCard({
           <Plus size={16} /> Send Another File
         </button>
       </div>
+
+      <QRCodeModal
+        isOpen={showQRModal}
+        onClose={() => setShowQRModal(false)}
+        transferCode={result.transferCode}
+        shareUrl={shareUrl}
+        fileName={result.originalName}
+      />
     </div>
   );
 }

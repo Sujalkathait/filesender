@@ -147,7 +147,7 @@ export function isValidTransferCodeInput(input) {
 /**
  * Format a comprehensive share message for messaging apps (WhatsApp, Telegram, Slack, etc.)
  */
-export function createShareMessage({ transferCode, shareUrl, expiryHours, fileCount = 1, totalSize = '' }) {
+export function createShareMessage({ transferCode, shareUrl, expiryHours, expirySeconds, fileCount = 1, totalSize = '' }) {
   const parts = [
     'FileShare Transfer',
     `Code: ${transferCode}`,
@@ -155,9 +155,17 @@ export function createShareMessage({ transferCode, shareUrl, expiryHours, fileCo
   if (shareUrl) {
     parts.push(`Link: ${shareUrl}`);
   }
-  if (expiryHours) {
-    const secs = Math.round(expiryHours >= 15 ? expiryHours : (expiryHours <= 1 ? expiryHours * 60 : expiryHours));
-    parts.push(`Expires: ${secs} seconds`);
+  const expVal = expirySeconds !== undefined ? expirySeconds : expiryHours;
+  if (expVal) {
+    const num = Number(expVal);
+    const secs = Math.round(num >= 15 ? num : (num <= 1 && num > 0 ? num * 60 : num));
+    if (secs <= 60) {
+      parts.push(`Expires: ${secs} seconds`);
+    } else {
+      const mins = Math.floor(secs / 60);
+      const rem = secs % 60;
+      parts.push(`Expires: ${mins} minute${mins > 1 ? 's' : ''}${rem > 0 ? ` ${rem}s` : ''} (${secs} seconds)`);
+    }
   }
   if (fileCount && totalSize) {
     parts.push(`Files: ${fileCount} file${fileCount > 1 ? 's' : ''} (${totalSize})`);

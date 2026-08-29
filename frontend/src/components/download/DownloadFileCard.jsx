@@ -24,7 +24,8 @@ export function DownloadFileCard({
   isDecrypting,
   statusMessage,
   onExecuteDownload,
-  onPreviewReady
+  onPreviewReady,
+  onExpire
 }) {
   const [now, setNow] = useState(Date.now());
 
@@ -44,6 +45,12 @@ export function DownloadFileCard({
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   const isExpired = remainingMillis <= 0;
+
+  useEffect(() => {
+    if (isExpired && onExpire) {
+      onExpire();
+    }
+  }, [isExpired, onExpire]);
 
   return (
     <div className="file-info animate-in" role="region" aria-label="Transfer Verification & Details">

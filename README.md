@@ -28,6 +28,7 @@ Files are encrypted directly in the user's browser using hardware-accelerated **
 The system is engineered with strict privacy principles:
 - **System Capacity:** Limited to **20 concurrent users** across the system.
 - **Batch Transfer Limit:** Up to **20 files per transfer** (up to 1 GB total size).
+- **Ephemeral TTL:** Live countdown expiry options strictly from **15 seconds up to 3 minutes (180s)**.
 - **Privacy-Preserving UI:** **Users never see download counts, download history, total downloads, or internal transfer statistics anywhere on sender or receiver UI.**
 
 ---
@@ -35,7 +36,7 @@ The system is engineered with strict privacy principles:
 ## ✨ Key Capabilities & Features
 
 ### 1. ⏱️ Ephemeral Expiry Countdown (15s up to 3 Minutes)
-- **Strict Ephemeral Window:** Configurable live countdown options (**15s, 30s, 45s, 60s, 2 min, up to 3 min / 180s**).
+- **Strict Ephemeral Window:** Configurable live countdown options (**15s, 30s, 45s, 60s / 1 min, 2 min / 120s, up to 3 min / 180s**).
 - **Sub-Second Auto-Purge:** The moment the countdown timer expires, backend background cleanup sweeps immediately unlink the ciphertext file and purge SQLite metadata.
 - **Visual Countdown:** Live countdown timers with animated progress track and auto-destruction notice.
 
@@ -99,7 +100,6 @@ graph TD
     end
 ```
 
----
 ---
 
 ## 🔄 Transfer Flow Sequence

@@ -5695,3 +5695,166 @@ button, a, input, select, textarea {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 16px));
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   VaultSettings, Privacy Options & Expiry Selection System
+   ───────────────────────────────────────────────────────────────────────────── */
+.vault-settings {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.vault-option-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: var(--transition-normal);
+  user-select: none;
+}
+
+.vault-option-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-surface-elevated);
+}
+
+.vault-option-card.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.option-card__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.option-card__copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+}
+
+.option-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.option-card__icon--danger {
+  background: var(--danger-subtle);
+  color: var(--danger-fg);
+}
+
+.option-card__icon--success {
+  background: var(--success-subtle);
+  color: var(--success-fg);
+}
+
+.option-card__icon--primary {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.option-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.option-card__title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.option-card__description {
+  display: block;
+  font-size: 0.775rem;
+  color: var(--fg-muted);
+  line-height: 1.35;
+}
+
+.option-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.vault-option-helper {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.vault-helper-toggle {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-xs);
+}
+
+.vault-helper-toggle:hover {
+  color: var(--accent);
+}
+
+.vault-helper-pane {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--fg-default);
+}
+
+.point-wise-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-point strong {
+  color: var(--accent);
+  margin-right: 4px;
+}
+
+.guide-point p {
+  display: inline;
+  margin: 0;
+  color: var(--fg-muted);
+}
+
+.expiry-pill-btn:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+.sender-qr-inline-card {
+  transition: var(--transition-fast);
+}
+
+.sender-qr-inline-card:hover {
+  border-color: var(--accent) !important;
+}
+

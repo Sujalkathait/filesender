@@ -56,8 +56,9 @@ export function isChunkedMarker(checksum) {
 export async function generateKey() {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-  // Generate 5 hex characters for password (5-char ID + 5-char Key = 10-digit transfer code)
-  const password = bytesToHex(crypto.getRandomValues(new Uint8Array(3))).slice(0, 5);
+  // Generate 5 numeric digits for password (5-digit ID + 5-digit Key = 10 numeric digit transfer code)
+  const randomBytes = crypto.getRandomValues(new Uint8Array(5));
+  const password = Array.from(randomBytes, b => (b % 10).toString()).join('');
 
   const keyMaterial = await crypto.subtle.importKey(
     'raw',

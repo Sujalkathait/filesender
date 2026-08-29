@@ -360,7 +360,11 @@ export const FAQS = [
   },
   {
     q: 'What happens when a file expires?',
-    a: 'When the expiration time (15 to 180 seconds) is reached, our automated cleanup system permanently deletes the encrypted blob from storage and purges the transfer records. Anyone visiting old links or QR codes will see a friendly "File Expired" notice.'
+    a: 'When the expiration time (15s, 30s, 45s, 60s, 2 min, up to 3 minutes / 180s) is reached, our automated cleanup system permanently deletes the encrypted blob from storage and purges the transfer records. Anyone visiting old links or QR codes will see a friendly "File Expired" notice.'
+  },
+  {
+    q: 'What expiry durations can I choose from?',
+    a: 'You can choose live countdown durations of 15 seconds, 30 seconds, 45 seconds, 60 seconds (1 min), 2 minutes (120s), or 3 minutes (180s). Files are automatically wiped immediately once the chosen timer ends.'
   },
   {
     q: 'Where is my data stored, and can anyone see it?',
@@ -372,7 +376,7 @@ export const FAQS = [
   },
   {
     q: 'What are the system and file limits?',
-    a: 'FileShare supports up to 20 concurrent users across the system, and allows each user to send up to 20 files per transfer (up to 1 GB total).'
+    a: 'FileShare supports up to 20 concurrent users across the system, allows each user to send up to 20 files per transfer (up to 1 GB total), and limits the ephemeral countdown to a maximum of 3 minutes (180 seconds).'
   }
 ];
 
