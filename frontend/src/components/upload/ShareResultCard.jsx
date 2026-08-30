@@ -13,9 +13,9 @@ import { QRCodeModal } from './QRCodeModal';
 /**
  * ShareResultCard Component
  * Primary Responsibility: Active Sender Dashboard Card rendered after successful upload.
- * Displays clean, organized telemetry boxes focused on the 10-Digit Transfer Code:
+ * Displays clean, organized telemetry boxes focused on the 6-Digit OTP Transfer Code:
  * 1. File Details & In-Browser Preview
- * 2. 10-Digit Transfer Code (Copy, WhatsApp, Share Text)
+ * 2. 6-Digit Transfer Code (Copy, WhatsApp, Share Text)
  * 3. Expiry Countdown (Live animated timer)
  * 4. Transfer Security & Zero-Knowledge Verification
  * Note: Users never see download counts, download history, or internal transfer statistics.
@@ -97,7 +97,7 @@ export function ShareResultCard({
         <div className="result-header-text">
           <h3 className="result-title">Encrypted &amp; Ready to Share!</h3>
           <p className="result-subtitle">
-            Your file was encrypted in your browser with zero server keys. Share the 10-digit code below to transfer.
+            Your file was encrypted in your browser with zero server keys. Share the 6-digit code below to transfer.
           </p>
         </div>
       </div>
@@ -160,7 +160,7 @@ export function ShareResultCard({
               <Key size={16} className="box-header-icon" />
               <span>2. Transfer Code &amp; QR</span>
             </div>
-            <span className="badge badge-emerald">10 Digits</span>
+            <span className="badge badge-emerald">6 Digits</span>
           </div>
           <div className="dashboard-code-display">
             <span className="dashboard-code-text">{result.transferCode}</span>
@@ -225,7 +225,7 @@ export function ShareResultCard({
               className="btn btn-primary btn-md box-copy-btn"
               onClick={onCopy}
               style={{ flex: 1 }}
-              title="Copy 10-digit code to clipboard"
+              title="Copy 6-digit code to clipboard"
             >
               {copied ? (
                 <>
@@ -255,7 +255,7 @@ export function ShareResultCard({
             </button>
           </div>
           <span className="dashboard-box-hint">
-            Scan QR code or enter this 10-digit code on recipient device to receive file.
+            Scan QR code or enter this 6-digit code on recipient device to receive file.
           </span>
         </div>
 
@@ -312,7 +312,7 @@ export function ShareResultCard({
             </div>
             <div className="status-item-row">
               <Check size={14} className="text-success" />
-              <span>{isBurn ? 'Self-destructs on download' : 'Auto-purged when timer expires'}</span>
+              <span>Self-destructs on download</span>
             </div>
           </div>
           <span className="dashboard-box-hint">

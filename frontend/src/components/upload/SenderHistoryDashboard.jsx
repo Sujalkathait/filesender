@@ -152,7 +152,7 @@ export function SenderHistoryDashboard({ onSelectTransferForQR, activeTransferId
                   type="button"
                   className="btn btn-secondary btn-xs"
                   onClick={() => handleCopyCode(item.transferCode || item.fileId, item.fileId)}
-                  title="Copy 10-digit transfer code"
+                  title="Copy 6-digit transfer code"
                 >
                   {copiedId === item.fileId ? (
                     <>

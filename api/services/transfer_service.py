@@ -76,7 +76,7 @@ class TransferService:
         checksum = (form_data.get("checksum") or "").strip()[:64]
         access_hash = form_data["access_hash"]
 
-        file_id = generate_id()
+        file_id = form_data.get("transfer_id") or generate_id()
         transfer_id = transfer_id or file_id
         owner_token = generate_owner_token()
         file_path = self.storage.get_file_path(file_id)
@@ -172,7 +172,7 @@ class TransferService:
         checksum = (form_data.get("checksum") or "").strip()[:64]
         access_hash = form_data["access_hash"]
 
-        file_id = generate_id()
+        file_id = form_data.get("transfer_id") or generate_id()
         transfer_id = transfer_id or file_id
         owner_token = generate_owner_token()
         now_utc = get_utc_now()

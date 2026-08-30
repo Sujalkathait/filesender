@@ -1,6 +1,6 @@
 /**
  * SecureShare Transfer Code Parser & Generator
- * Manages creation and parsing of 10-digit transfer codes, URL fragments, and sharing messages.
+ * Manages creation and parsing of 6-digit OTP transfer codes, URL fragments, and sharing messages.
  */
 
 /**
@@ -23,18 +23,19 @@ export function extractKeyFromUrl() {
 }
 
 /**
- * Create a clean, readable 10-digit Transfer Code
- * Format: FS-<5-char ID>-<5-char Key> (e.g. FS-4BE81-9F8A7 or FS-12345-67890)
- * Total code payload is exactly 10 digits (formatted as 5-5 for ease of typing).
+ * Create a clean, readable 6-digit OTP Transfer Code (numbers only, e.g. 839201)
  */
 export function createTransferCode(fileId, password) {
   const f = (fileId || '').toUpperCase();
   const p = (password || '').toUpperCase();
-  return `FS-${f}-${p}`;
+  if (!p || f === p) {
+    return f;
+  }
+  return `${f}-${p}`;
 }
 
 /**
- * Parse 10-digit Transfer Code or flexible input formats (URL, FS-code, SEC-code, 10-digit, 16-char hex) into fileId and key
+ * Parse 6-digit OTP Transfer Code or flexible input formats (URL, number code, FS-code, SEC-code, 10-digit, 16-char hex) into fileId and key
  */
 export function parseTransferCode(input) {
   if (!input) return { fileId: null, key: null, valid: false };
@@ -47,13 +48,7 @@ export function parseTransferCode(input) {
     valid
   });
 
-  // If user pasted a full message or text with Code: FS-..., extract the code
-  const codeInText = str.match(/(?:Code:\s*|code=)?(FS-[0-9a-zA-Z]+-[0-9a-zA-Z]+)/i);
-  if (codeInText && codeInText[1]) {
-    str = codeInText[1];
-  }
-
-  // Extract from full URL if pasted
+  // Extract from full URL if pasted (MUST be done before regex extraction)
   if (str.startsWith('http://') || str.startsWith('https://')) {
     try {
       const url = new URL(str);
@@ -67,11 +62,17 @@ export function parseTransferCode(input) {
         if (pathParts.length > 0) {
           const lastPart = pathParts[pathParts.length - 1];
           if (lastPart !== 'download') {
-            return result(lastPart.toLowerCase(), null, Boolean(lastPart));
+            return result(lastPart.toLowerCase(), urlKey || lastPart.toLowerCase(), Boolean(lastPart));
           }
         }
       }
     } catch (_) {}
+  }
+
+  // If user pasted a full message or text with Code: FS-..., extract the code
+  const codeInText = str.match(/(?:Code:\s*|code=)?(FS-[0-9a-zA-Z]+(?:-[0-9a-zA-Z]+)*)/i);
+  if (codeInText && codeInText[1]) {
+    str = codeInText[1];
   }
 
   // Handle explicit prefixes: FS-, FS:, SEC-, SEC:, FILE-, FILE:
@@ -79,14 +80,26 @@ export function parseTransferCode(input) {
   for (const prefix of ['FS-', 'FS:', 'SEC-', 'SEC:', 'FILE-', 'FILE:']) {
     if (upper.startsWith(prefix)) {
       const remainder = str.slice(prefix.length).trim();
+      const cleanedRemainder = remainder.replace(/[\s-]/g, '').toLowerCase();
+
+      // Check for 6-digit OTP code with prefix (e.g. FS-839201 or FS-839-201)
+      if (/^\d{6}$/.test(cleanedRemainder)) {
+        return result(cleanedRemainder, urlKey || cleanedRemainder, true);
+      }
+
       const parts = remainder.split(/[-:]/);
       if (parts.length >= 2) {
+        // If it's a 3+3 digit split like 839-201
+        if (parts.length === 2 && parts[0].length === 3 && parts[1].length === 3 && /^\d{6}$/.test(cleanedRemainder)) {
+          return result(cleanedRemainder, urlKey || cleanedRemainder, true);
+        }
         return result(parts[0].toLowerCase(), parts.slice(1).join('-').toLowerCase(), true);
       } else if (parts.length === 1 && parts[0]) {
         // Handle raw 10-digit / 16-hex code with prefix (e.g. FS-4BE819F8A7)
-        const cleanedRemainder = parts[0].replace(/[\s-]/g, '').toLowerCase();
         if (/^[0-9a-f]+$/.test(cleanedRemainder)) {
-          if (cleanedRemainder.length === 10) {
+          if (cleanedRemainder.length === 6) {
+            return result(cleanedRemainder, urlKey || cleanedRemainder, true);
+          } else if (cleanedRemainder.length === 10) {
             return result(cleanedRemainder.slice(0, 5), cleanedRemainder.slice(5), true);
           } else if (cleanedRemainder.length === 16) {
             return result(cleanedRemainder.slice(0, 8), cleanedRemainder.slice(8), true);
@@ -94,14 +107,19 @@ export function parseTransferCode(input) {
             return result(cleanedRemainder.slice(0, 16), cleanedRemainder.slice(16), true);
           }
         }
-        return result(parts[0].toLowerCase(), null, true);
+        return result(parts[0].toLowerCase(), urlKey || null, true);
       }
     }
   }
 
-  // Handle hyphenated format without prefix (e.g. 4BE81-9F8A7 or 12345-67890 or 4BE819D7-9F8A73C2)
-  if (str.includes('-') || str.includes(':')) {
-    const parts = str.split(/[-:]/).filter(Boolean);
+  // Handle hyphenated format without prefix (e.g. 839-201 or 4BE81-9F8A7 or 12345-67890 or 4BE819D7-9F8A73C2)
+  if (str.includes('-') || str.includes(':') || str.includes(' ')) {
+    const cleanedDigits = str.replace(/[\s-:]/g, '').toLowerCase();
+    // 6-digit OTP formatted as 839-201 or 839 201
+    if (/^\d{6}$/.test(cleanedDigits)) {
+      return result(cleanedDigits, urlKey || cleanedDigits, true);
+    }
+    const parts = str.split(/[-:\s]+/).filter(Boolean);
     if (parts.length >= 2) {
       return result(parts[0].toLowerCase(), parts.slice(1).join('-').toLowerCase(), true);
     }
@@ -110,6 +128,10 @@ export function parseTransferCode(input) {
   // Handle raw combined digits / hex (no hyphens)
   const cleaned = str.replace(/[\s-]/g, '').toLowerCase();
   if (/^[0-9a-f]+$/.test(cleaned)) {
+    // 6-digit numeric OTP transfer code
+    if (/^\d{6}$/.test(cleaned)) {
+      return result(cleaned, urlKey || cleaned, true);
+    }
     // 10-digit transfer code (5 file ID + 5 key)
     if (cleaned.length === 10) {
       return result(cleaned.slice(0, 5), cleaned.slice(5), true);
@@ -122,17 +144,21 @@ export function parseTransferCode(input) {
     if (cleaned.length >= 32) {
       return result(cleaned.slice(0, 16), cleaned.slice(16), true);
     }
+    // 6-character hex raw ID
+    if (cleaned.length === 6) {
+      return result(cleaned, urlKey || cleaned, true);
+    }
     // 5-digit raw file ID
     if (cleaned.length === 5) {
-      return result(cleaned, null, true);
+      return result(cleaned, urlKey || null, true);
     }
     // 8-digit raw file ID
     if (cleaned.length >= 8) {
-      return result(cleaned.slice(0, 8), cleaned.slice(8) || null, Boolean(cleaned));
+      return result(cleaned.slice(0, 8), cleaned.slice(8) || urlKey || null, Boolean(cleaned));
     }
   }
 
-  return result(str.toLowerCase() || null, null, Boolean(str));
+  return result(str.toLowerCase() || null, urlKey || str.toLowerCase() || null, Boolean(str));
 }
 
 /**
@@ -141,7 +167,7 @@ export function parseTransferCode(input) {
 export function isValidTransferCodeInput(input) {
   const parsed = parseTransferCode(input);
   if (!parsed.valid || !parsed.fileId) return false;
-  return /^[0-9a-fA-F]{4,32}$/.test(parsed.fileId);
+  return /^[0-9a-fA-F]{3,32}$/.test(parsed.fileId);
 }
 
 /**

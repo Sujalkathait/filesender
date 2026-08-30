@@ -128,8 +128,32 @@ async function runTests() {
   check('cleanup resets preview state', pm.currentPreview === null && pm.activeObjectUrls.size === 0);
 
   console.log('== 6. Transfer Code Creation, Parsing & Share Templates ==');
+  const code6 = createTransferCode('839201', '839201');
+  check('createTransferCode format 6-digit number only', code6 === '839201');
+
+  const p6_raw = parseTransferCode('839201');
+  check('parse 6-digit raw numeric OTP', p6_raw.fileId === '839201' && p6_raw.key === '839201');
+
+  const p6_space = parseTransferCode('839 201');
+  check('parse 6-digit spaced OTP', p6_space.fileId === '839201' && p6_space.key === '839201');
+
+  const p6_dash = parseTransferCode('839-201');
+  check('parse 6-digit hyphenated OTP', p6_dash.fileId === '839201' && p6_dash.key === '839201');
+
+  const p6_fs = parseTransferCode('FS-839201');
+  check('parse 6-digit FS code', p6_fs.fileId === '839201' && p6_fs.key === '839201');
+
+  const p6_fs_dash = parseTransferCode('FS-839-201');
+  check('parse 6-digit FS hyphenated code', p6_fs_dash.fileId === '839201' && p6_fs_dash.key === '839201');
+
+  const p6_url = parseTransferCode('https://fileshare.local/download?code=FS-839201');
+  check('parse 6-digit code from URL', p6_url.fileId === '839201' && p6_url.key === '839201');
+
+  check('accept 6-digit raw input', isValidTransferCodeInput('839201') === true);
+  check('accept 6-digit FS input', isValidTransferCodeInput('FS-839201') === true);
+
   const code10 = createTransferCode('4be81', '9f8a7');
-  check('createTransferCode format 10-digit FS-XXXXX-YYYYY', code10 === 'FS-4BE81-9F8A7');
+  check('createTransferCode format 10-digit XXXXX-YYYYY', code10 === '4BE81-9F8A7');
 
   const p10_1 = parseTransferCode('FS-4BE81-9F8A7');
   check('parse 10-digit FS code', p10_1.fileId === '4be81' && p10_1.key === '9f8a7');
@@ -147,7 +171,7 @@ async function runTests() {
   check('parse 10-numeric digits raw', p10_num_raw.fileId === '12345' && p10_num_raw.key === '67890');
 
   const code = createTransferCode('4be819d7', '9f8a73c2');
-  check('createTransferCode format FS-XXX-YYY', code === 'FS-4BE819D7-9F8A73C2');
+  check('createTransferCode format XXX-YYY', code === '4BE819D7-9F8A73C2');
 
   const p1 = parseTransferCode('FS-4BE819D7-9F8A73C2');
   check('parse FS code', p1.fileId === '4be819d7' && p1.key === '9f8a73c2');
@@ -169,17 +193,17 @@ async function runTests() {
   check('accept 16-hex transfer input', isValidTransferCodeInput('FS-4BE819D7-9F8A73C2') === true);
 
   const shareMsg = createShareMessage({
-    transferCode: 'FS-4BE81-9F8A7',
-    shareUrl: 'https://fileshare.local/download?code=FS-4BE81-9F8A7',
+    transferCode: 'FS-839201',
+    shareUrl: 'https://fileshare.local/download?code=FS-839201',
     expiryHours: 1,
     fileCount: 3,
     totalSize: '45.2 MB'
   });
-  check('share message contains transfer code', shareMsg.includes('Code: FS-4BE81-9F8A7'));
+  check('share message contains transfer code', shareMsg.includes('Code: FS-839201'));
   check('share message contains link and expiry in seconds', shareMsg.includes('Link:') && shareMsg.includes('Expires: 60 seconds'));
 
-  const pMsg = parseTransferCode('FileShare Transfer\nCode: FS-4BE81-9F8A7\nExpires: 60 seconds');
-  check('parse code from multi-line pasted message', pMsg.fileId === '4be81' && pMsg.key === '9f8a7');
+  const pMsg = parseTransferCode('FileShare Transfer\nCode: FS-839201\nExpires: 60 seconds');
+  check('parse code from multi-line pasted message', pMsg.fileId === '839201' && pMsg.key === '839201');
 
   console.log(`\n== ${passed} passed, ${failed} failed ==`);
   process.exit(failed ? 1 : 0);

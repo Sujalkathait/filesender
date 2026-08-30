@@ -7,7 +7,7 @@ import { Navbar } from './components/layout/Navbar';
 import { MobileNav } from './components/layout/MobileNav';
 import { Footer } from './components/layout/Footer';
 import { HeroSection } from './components/home/HeroSection';
-import { SettingsModal } from './components/layout/SettingsModal';
+
 import { useTheme } from './context/ThemeContext';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { api } from './services/api';
@@ -40,7 +40,7 @@ function HomePage({ onScrollToSection }) {
 function App() {
   const [serverOnline, setServerOnline] = useState(null);
   const [ephemeralStorage, setEphemeralStorage] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+
   const [bannerDismissed, setBannerDismissed] = useState(() => {
     try {
       return sessionStorage.getItem('fileshare_banner_dismissed') === '1';
@@ -96,11 +96,7 @@ function App() {
   }, []);
 
   const handleCycleTheme = useCallback(() => {
-    setTheme((prevTheme) => {
-      if (prevTheme === 'system') return 'light';
-      if (prevTheme === 'light') return 'dark';
-      return 'system';
-    });
+    setTheme((prevTheme) => prevTheme === 'light' ? 'dark' : 'light');
   }, [setTheme]);
 
   const scrollToSection = useCallback((e, sectionId) => {
@@ -131,9 +127,8 @@ function App() {
       <Navbar
         serverOnline={serverOnline}
         theme={theme}
-        resolvedTheme={resolvedTheme}
         onCycleTheme={handleCycleTheme}
-        onOpenSettings={() => setShowSettings(true)}
+
         currentPath={location.pathname}
         currentHash={location.hash}
         onScrollToSection={scrollToSection}
@@ -169,18 +164,12 @@ function App() {
         currentPath={location.pathname}
         currentHash={location.hash}
         onScrollToSection={scrollToSection}
-        onOpenSettings={() => setShowSettings(true)}
+
       />
 
       <Footer onScrollToSection={scrollToSection} />
 
-      {/* Global Settings & Privacy Modal */}
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        serverOnline={serverOnline}
-        ephemeralStorage={ephemeralStorage}
-      />
+
     </div>
   );
 }

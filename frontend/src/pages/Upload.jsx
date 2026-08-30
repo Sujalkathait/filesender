@@ -43,8 +43,8 @@ function UploadPage() {
 
   // Vault Options
   const [useSteganography, setUseSteganography] = useState(false);
-  const [burnOnRead, setBurnOnRead] = useState(false);
-  const [maxDownloads, setMaxDownloads] = useState(10);
+  const burnOnRead = true; // Always enabled — no data stored after download
+  const maxDownloads = 1;  // Single download only with burn-on-read
   const [expiryHours, setExpiryHours] = useState(60);
   const [useP2P, setUseP2P] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
@@ -127,23 +127,7 @@ function UploadPage() {
     e.target.value = '';
   };
 
-  const handleBurnToggle = () => {
-    const nextBurn = !burnOnRead;
-    setBurnOnRead(nextBurn);
-    if (nextBurn) {
-      setMaxDownloads(1);
-    } else if (maxDownloads === 1) {
-      setMaxDownloads(10);
-    }
-  };
 
-  const handleMaxDownloadsChange = (val) => {
-    const num = Number(val);
-    setMaxDownloads(num);
-    if (num !== 1 && burnOnRead) {
-      setBurnOnRead(false);
-    }
-  };
 
   const openConfirmation = () => {
     if (files.length === 0 || isOverLimit || isTransferring) return;
@@ -346,8 +330,6 @@ function UploadPage() {
               />
 
               <VaultSettings
-                burnOnRead={burnOnRead}
-                onBurnToggle={handleBurnToggle}
                 useSteganography={useSteganography}
                 setUseSteganography={setUseSteganography}
                 useP2P={useP2P}
@@ -407,7 +389,6 @@ function UploadPage() {
         isSmartOptimized={isSmartOptimized}
         currentOpt={currentOpt}
         useSteganography={useSteganography}
-        burnOnRead={burnOnRead}
         expiryHours={expiryHours}
       />
 

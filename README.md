@@ -29,7 +29,7 @@ The system is engineered with strict privacy principles:
 - **System Capacity:** Limited to **20 concurrent users** across the system.
 - **Batch Transfer Limit:** Up to **20 files per transfer** (up to 1 GB total size).
 - **Ephemeral TTL:** Live countdown expiry options strictly from **15 seconds up to 3 minutes (180s)**.
-- **Privacy-Preserving UI:** **Users never see download counts, download history, total downloads, or internal transfer statistics anywhere on sender or receiver UI.**
+- **Privacy-Preserving:** **Burn After Read is always enabled — every file self-destructs immediately after download. No data is ever stored on sender or receiver side.**
 
 ---
 
@@ -40,15 +40,15 @@ The system is engineered with strict privacy principles:
 - **Sub-Second Auto-Purge:** The moment the countdown timer expires, backend background cleanup sweeps immediately unlink the ciphertext file and purge SQLite metadata.
 - **Visual Countdown:** Live countdown timers with animated progress track and auto-destruction notice.
 
-### 2. 🔢 10-Digit Transfer Codes (`FS-XXXXX-XXXXX`)
-- **Seamless Code Format:** 5-character file ID + 5-character decryption key combined into a standard 10-digit/char code (e.g., `FS-4BE81-9F8A7`).
-- **Flexible Code Parsing:** Seamlessly accepts `FS-XXXXX-XXXXX`, `XXXXX-XXXXX`, raw 10-hex strings (`4BE819F8A7`), numeric strings, or direct URL hash links (`#key=...`).
+### 2. 🔢 6-Digit OTP Transfer Codes (`839201`)
+- **Seamless OTP Code Format:** 6-number digit OTP format for effortless sending, typing, and memorizing like an SMS OTP (e.g., `839201`).
+- **Flexible Code Parsing:** Seamlessly accepts 6-digit OTP codes (`839201`, `839 201`, `839-201`), legacy 10-digit codes, 16-hex strings, or direct URL hash links (`#key=...`).
 - **One-Click Share:** Copy code, copy formatted instructions, or share directly via WhatsApp.
 
 ### 3. 📊 Clean Sender Dashboard (Streamlined 4-Card Layout)
 The sender screen features an organized, responsive 4-card telemetry layout:
 1. **File Details Box:** File thumbnail / icon, filename, total size, single/bundle file count, and in-browser preview button.
-2. **Transfer Code Box:** Prominent 10-digit code with one-click copy, WhatsApp share, and share text copy.
+2. **Transfer Code Box:** Prominent 6-digit OTP code with one-click copy, WhatsApp share, and share text copy.
 3. **Expiry Countdown Box:** Real-time countdown timer in seconds with animated progress track.
 4. **Security & Privacy Box:** Zero-Knowledge AES-256-GCM verification seal, client-side only keys, and Burn-on-Read / auto-purge status.
 
@@ -59,16 +59,16 @@ The sender screen features an organized, responsive 4-card telemetry layout:
 ### 5. 📥 Receiver Experience & In-Browser Preview
 - **Pre-Download Inspection:** Inspect photos, audio, video, PDFs, code, and text directly in-browser before saving to disk.
 - **Clean Verification Telemetry:** Displays transfer size, AES-256-GCM encryption, live countdown timer, and verified E2E security badge without exposing download statistics.
-- **Burn-on-Read Self-Destruction:** Files marked with Burn-on-Read automatically self-destruct from the server immediately after download completion.
+- **Burn-on-Read Self-Destruction:** Every file automatically self-destructs from the server immediately after download completion. No data is ever stored.
 
 ### 6. 🌐 Multiple Transfer Modes
 - **Cloud Encrypted Relay:** AES-256-GCM ciphertext stored temporarily until download or expiry countdown completes.
 - **WebRTC Direct P2P:** Direct browser-to-browser streaming via DataChannels with **zero intermediary server storage**.
 - **Steganography Image Vault:** Inconspicuously conceals encrypted bytes inside standard PNG pixel arrays (<10 MB).
 
-### 7. 🧹 Zero Tracking & One-Click Privacy Purge
+### 7. 🧹 Zero Tracking & Privacy
 - **No Tracking Cookies:** Zero persistent tracking cookies or user accounts required.
-- **Session Data Purge:** Dedicated Settings & Privacy tool to wipe all session tokens, cookie records, blob memory URLs, and transfer histories in one click.
+- **Session Data Purge:** All session tokens, cookie records, blob memory URLs, and transfer histories are automatically cleared when the browser tab is closed.
 
 ---
 
@@ -111,11 +111,11 @@ sequenceDiagram
     participant Backend as Flask API & SQLite WAL
     actor Receiver as Receiver Browser
 
-    Note over Sender: Encrypts file locally (AES-256-GCM, 10-Digit Code FS-XXXXX-XXXXX)
+    Note over Sender: Encrypts file locally (AES-256-GCM, 6-Digit OTP Code)
     Sender->>Backend: POST /api/upload (Encrypted ciphertext, expiry_seconds <= 180, file_count <= 20)
     Backend-->>Sender: 200 OK (file_id, owner_token, expires_at)
 
-    Note over Sender,Receiver: Sender shares 10-digit code or QR code
+    Note over Sender,Receiver: Sender shares 6-digit OTP code or QR code
     Receiver->>Backend: GET /api/file-info/<id> (X-Access-Proof)
     Backend-->>Receiver: Metadata (size, mime_type, expires_at)
 

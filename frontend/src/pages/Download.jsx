@@ -17,7 +17,7 @@ import { ExpiredFileCard } from '../components/download/ExpiredFileCard';
 
 /**
  * Download Page Orchestrator Component
- * Primary Responsibility: Manage state for download workflows, orchestrating 10-digit code search, decrypting, previewing, and saving.
+ * Primary Responsibility: Manage state for download workflows, orchestrating 6-digit code search, decrypting, previewing, and saving.
  */
 function DownloadPage() {
   const { fileId: urlFileId } = useParams();
@@ -133,8 +133,8 @@ function DownloadPage() {
       if (text && text.trim()) {
         const val = text.trim();
         const parsed = parseTransferCode(val);
-        const codeDisplay = parsed.valid && parsed.fileId && parsed.key
-          ? `FS-${parsed.fileId.toUpperCase()}-${parsed.key.toUpperCase()}`
+        const codeDisplay = parsed.valid && parsed.fileId
+          ? parsed.fileId.toUpperCase()
           : val;
         setCodeInput(codeDisplay);
         handleSearchCode(val, parsed.key);
@@ -187,7 +187,7 @@ function DownloadPage() {
 
       <div className="page-header">
         <h2><Download size={22} /> Receive Files</h2>
-        <p>Enter your 10-digit transfer code below to connect, inspect file details, preview, and download.</p>
+        <p>Enter your 6-digit transfer code below to connect, inspect file details, preview, and download.</p>
       </div>
 
       <CodeSearchInput
@@ -224,7 +224,7 @@ function DownloadPage() {
         <EmptyState
           icon={Search}
           title="No active transfer selected"
-          description="Enter a 10-digit transfer code from the sender to connect, inspect file details, preview, and download."
+          description="Enter a 6-digit transfer code from the sender to connect, inspect file details, preview, and download."
           actionText="Paste from Clipboard"
           onAction={handlePasteClipboard}
         />

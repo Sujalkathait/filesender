@@ -33,7 +33,7 @@ function mapDownloadError(err, fallback) {
     if (msg.includes('burn') || msg.includes('self-destruct')) return 'This file had Burn After Read enabled and was permanently deleted upon download.';
     return 'This file is no longer available because the sharing time limit has expired.';
   }
-  if (status === 403) return 'Access proof error: Please ensure you pasted the full transfer code (FS-id-key) rather than just the file ID.';
+  if (status === 403) return 'Access proof error: Please ensure you pasted the full transfer code rather than just the file ID.';
   if (status === 404) return 'Transfer not found: The code does not exist or was deleted by the sender.';
   if (status === 400) return 'Invalid transfer code format. Please check the code and try again.';
   if (name === 'AbortError' || msg.includes('timeout') || msg.includes('failed to fetch') || msg.includes('network')) {
@@ -66,7 +66,7 @@ export function useDownload(stateMachine) {
   const fetchServerFileInfo = useCallback(async (id, activeKey) => {
     if (!activeKey) {
       setNeedsKey(true);
-      setError('Paste the full transfer code (FS-id-key). File ID alone cannot open this transfer.');
+      setError('Paste the full transfer code. File ID alone cannot open this transfer.');
       stateMachine?.transitionTo(TransferState.INVALID_TOKEN);
       return;
     }

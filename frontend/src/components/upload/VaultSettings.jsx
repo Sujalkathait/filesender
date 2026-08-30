@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Flame, Image as ImageIcon, Radio, Clock, HelpCircle, ChevronDown, ChevronUp, Info, ShieldCheck } from 'lucide-react';
+import React from 'react';
+import { Flame, Image as ImageIcon, Radio, Clock, HelpCircle, ShieldCheck, Info } from 'lucide-react';
 
 const EXPIRY_PRESETS = [
   { value: 15, label: '15s', fullLabel: '15 seconds', hint: 'Ultra fast temporary transfer' },
@@ -13,12 +13,11 @@ const EXPIRY_PRESETS = [
 
 /**
  * VaultSettings Component
- * Primary Responsibility: Handle security & privacy toggles (Burn-on-Read, Steganography, Direct P2P)
+ * Primary Responsibility: Handle security & privacy options (Steganography, Direct P2P)
  * and code expiry countdown selection (15s up to 3 minutes).
+ * Burn After Read is always enabled — no toggle needed.
  */
 export function VaultSettings({
-  burnOnRead,
-  onBurnToggle,
   useSteganography,
   setUseSteganography,
   useP2P,
@@ -28,8 +27,6 @@ export function VaultSettings({
   isTransferring,
   onOpenGuide
 }) {
-  const [showBurnDetails, setShowBurnDetails] = useState(false);
-
   const currentPreset = EXPIRY_PRESETS.find(p => p.value === expiryHours) || {
     value: expiryHours,
     label: `${expiryHours}s`,
@@ -57,14 +54,10 @@ export function VaultSettings({
         </button>
       </div>
 
-      {/* Option 1: Burn-on-Read (Self-Destruct) */}
+      {/* Burn-on-Read: Always Active Info Banner */}
       <div
-        className={`vault-option-card ${burnOnRead ? 'active' : ''}`}
-        onClick={() => !isTransferring && onBurnToggle()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !isTransferring && onBurnToggle()}
-        aria-expanded={burnOnRead}
+        className="vault-option-card active"
+        style={{ cursor: 'default', pointerEvents: 'none' }}
       >
         <div className="option-card__content">
           <div className="option-card__copy">
@@ -74,57 +67,22 @@ export function VaultSettings({
             <div>
               <div className="option-card__title-row">
                 <strong className="option-card__title">Burn After Read (Self-Destruct)</strong>
-                <span className="badge badge-amber">SELF-DESTRUCT</span>
+                <span className="badge badge-amber">ALWAYS ON</span>
               </div>
               <span className="option-card__description">
-                File permanently deletes and unlinks from server disk immediately once downloaded.
+                Every file permanently self-destructs from the server immediately once downloaded. No data is ever stored.
               </span>
             </div>
           </div>
-          <input
-            type="checkbox"
-            checked={burnOnRead}
-            disabled={isTransferring}
-            onChange={(e) => {
-              e.stopPropagation();
-              onBurnToggle();
-            }}
-            className="option-checkbox"
-            aria-label="Burn after read"
-          />
+          <ShieldCheck size={20} className="text-success" style={{ flexShrink: 0 }} />
         </div>
-
-        {/* Expandable Explanation for Burn After Read */}
-        <div className="vault-option-helper" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="vault-helper-toggle"
-            onClick={() => setShowBurnDetails(!showBurnDetails)}
-            aria-expanded={showBurnDetails}
-          >
-            <Info size={13} />
-            <span>How Burn After Read works</span>
-            {showBurnDetails ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </button>
-
-          {showBurnDetails && (
-            <div className="vault-helper-pane animate-in">
-              <div className="point-wise-guide">
-                <div className="guide-point">
-                  <strong>What is it?</strong>
-                  <p>The encrypted file blob is permanently wiped from server storage the instant the recipient finishes downloading.</p>
-                </div>
-                <div className="guide-point">
-                  <strong>Why use it?</strong>
-                  <p>Guarantees one-time delivery and ensures no residual data remains on any server.</p>
-                </div>
-                <div className="guide-point">
-                  <strong>Important:</strong>
-                  <p>In-browser previews do not consume or burn the transfer, so recipients can safely inspect files before completing their download.</p>
-                </div>
-              </div>
+        <div className="vault-option-helper" style={{ pointerEvents: 'auto' }}>
+          <div className="vault-helper-pane" style={{ padding: '8px 12px', marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.8rem', color: 'var(--fg-muted)' }}>
+              <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span>In-browser previews do not consume the transfer, so recipients can safely inspect files before completing their download.</span>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -301,4 +259,3 @@ export function VaultSettings({
 }
 
 export default VaultSettings;
-

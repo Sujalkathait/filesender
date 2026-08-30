@@ -11,8 +11,8 @@ ACCESS_PROOF_PREFIX = "fileshare-access:"
 
 
 def generate_id() -> str:
-    """5-digit numeric ID (forms a 10-digit transfer code when paired with a 5-digit key)."""
-    return "".join(secrets.choice("0123456789") for _ in range(5))
+    """6-digit numeric ID for OTP-style transfer code (e.g. '839201')."""
+    return "".join(secrets.choice("0123456789") for _ in range(6))
 
 
 def generate_owner_token() -> str:

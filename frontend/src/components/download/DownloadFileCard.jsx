@@ -83,7 +83,7 @@ export function DownloadFileCard({
         </div>
         <div className="telemetry-card">
           <span className="telemetry-label">Time Remaining</span>
-          <span className={`telemetry-val ${totalSeconds < 300 ? 'text-warning' : 'text-primary'}`}>
+          <span className={`telemetry-val ${totalSeconds < 15 ? 'text-warning' : 'text-primary'}`}>
             <Clock size={13} /> {isExpired ? 'Expired' : `${minutes}m ${seconds < 10 ? '0' : ''}${seconds}s`}
           </span>
         </div>

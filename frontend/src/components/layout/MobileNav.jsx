@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, Upload, Download, BookOpen, Settings } from 'lucide-react';
+import { Zap, Upload, Download, BookOpen } from 'lucide-react';
 
 /**
  * Mobile Bottom Navigation Component
@@ -10,7 +10,7 @@ export const MobileNav = memo(function MobileNav({
   currentPath,
   currentHash,
   onScrollToSection,
-  onOpenSettings
+
 }) {
   const navLinkClass = (path) => currentPath === path && !currentHash ? 'active' : '';
 
@@ -37,17 +37,7 @@ export const MobileNav = memo(function MobileNav({
         <BookOpen size={20} />
         <span>Guide</span>
       </Link>
-      {onOpenSettings && (
-        <button
-          type="button"
-          className="mobile-nav-item mobile-nav-btn"
-          onClick={onOpenSettings}
-          aria-label="Settings and Privacy"
-        >
-          <Settings size={20} />
-          <span>Settings</span>
-        </button>
-      )}
+
     </nav>
   );
 });

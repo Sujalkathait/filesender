@@ -26,8 +26,6 @@ export function TransferConfirmModal({
   isSmartOptimized,
   currentOpt,
   useSteganography,
-  burnOnRead,
-  maxDownloads,
   expiryHours
 }) {
   const closeBtnRef = useRef(null);
@@ -80,13 +78,9 @@ export function TransferConfirmModal({
           <div className="confirmation-row">
             <label>Sharing Mode</label>
             <span>
-              {useSteganography && burnOnRead
+              {useSteganography
                 ? 'Burn-on-Read (Self-Destruct) + Steganography'
-                : useSteganography
-                ? 'Steganography Vault'
-                : burnOnRead
-                ? 'Burn-on-Read (Self-Destruct)'
-                : 'Standard AES-256-GCM'}
+                : 'Burn-on-Read (Self-Destruct)'}
             </span>
           </div>
           <div className="confirmation-row" style={{ borderBottom: 'none' }}>

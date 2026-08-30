@@ -128,6 +128,7 @@ export function useEncryptAndSend(stateMachine) {
         filename: uploadFileName,
         original_name: packaged.name,
         original_size: encrypted.originalSize,
+        transfer_id: encrypted.password,
         iv: encrypted.iv,
         salt: encrypted.salt,
         compressed: encrypted.compressed ? '1' : '0',
@@ -153,7 +154,7 @@ export function useEncryptAndSend(stateMachine) {
         } catch (_) {}
       }
 
-      const shareReference = `FS-${data.file_id.toUpperCase()}`;
+      const shareReference = transferCode;
       let bestUrl = `${window.location.origin}/download?code=${encodeURIComponent(shareReference)}#key=${encodeURIComponent(encrypted.password)}`;
       const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       if (isLocal) {
@@ -191,6 +192,7 @@ export function useEncryptAndSend(stateMachine) {
         fileId: data.file_id,
         transferId: data.transfer_id || data.file_id,
         transferCode,
+        originalName: packaged.name,
         createdAt,
         expiresAt,
         originalSize: totalSelectedSize,

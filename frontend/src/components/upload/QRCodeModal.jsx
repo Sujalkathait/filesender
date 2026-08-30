@@ -5,7 +5,7 @@ import { copyToClipboard } from '../../utils/clipboard';
 
 /**
  * QRCodeModal Component
- * Displays the 10-Digit Transfer Code and high-contrast QR Code for sender sharing.
+ * Displays the 6-Digit OTP Transfer Code and high-contrast QR Code for sender sharing.
  */
 export function QRCodeModal({ isOpen, onClose, transferCode, shareUrl, fileName }) {
   const [copiedCode, setCopiedCode] = useState(false);
@@ -115,7 +115,7 @@ export function QRCodeModal({ isOpen, onClose, transferCode, shareUrl, fileName 
           )}
         </div>
 
-        {/* 10-Digit Transfer Code Badge */}
+        {/* 6-Digit Transfer Code Badge */}
         <div style={{
           padding: '10px 16px',
           background: 'var(--bg-subtle, #f1f5f9)',
@@ -125,7 +125,7 @@ export function QRCodeModal({ isOpen, onClose, transferCode, shareUrl, fileName 
           width: '100%'
         }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-muted)', display: 'block' }}>
-            10-Digit Transfer Code
+            6-Digit OTP Transfer Code
           </span>
           <strong style={{ fontSize: '1.3rem', fontFamily: 'monospace', letterSpacing: '0.08em', color: 'var(--accent, #0066ff)' }}>
             {transferCode}

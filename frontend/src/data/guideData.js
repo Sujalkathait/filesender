@@ -24,8 +24,8 @@ export const FILE_SHARING_LIFECYCLE_STEPS = [
   {
     step: 3,
     title: 'Choose Settings',
-    desc: 'Select code expiry countdown (15s up to 3 min) and privacy options.',
-    detail: 'Optionally enable Burn After Read (Self-Destruct), Steganography Vault, or Direct P2P.'
+    desc: 'Burn After Read is always enabled. Files auto self-destruct after download.',
+    detail: 'Optionally enable Steganography Vault or Direct P2P. Select expiry countdown (15s up to 3 min).'
   },
   {
     step: 4,
@@ -36,7 +36,7 @@ export const FILE_SHARING_LIFECYCLE_STEPS = [
   {
     step: 5,
     title: 'Show QR & Code',
-    desc: 'Get your unique 10-digit Transfer Code (e.g. FS-XXXXX-XXXXX) and dynamic QR code.',
+    desc: 'Get your unique 6-digit Transfer Code (e.g. 839201) and dynamic QR code.',
     detail: 'Share the code or let the recipient scan the QR code with their camera.'
   },
   {
@@ -75,12 +75,12 @@ export const FEATURE_EXPLANATIONS = [
     title: 'File Sharing (Cloud Encrypted)',
     badge: 'Standard Transfer',
     badgeColor: 'badge-primary',
-    whatIsIt: 'A secure way to send up to 20 files to anyone using an instant 10-digit Transfer Code or QR code.',
+    whatIsIt: 'A secure way to send up to 20 files to anyone using an instant 6-digit Transfer Code or QR code.',
     whyUseIt: 'Send files up to 1 GB without creating an account or uploading unencrypted files.',
     howToUse: [
       'Click Select File or drop up to 20 files on the Upload page.',
       'Review your files and choose your expiry countdown timer.',
-      'Click Send File to encrypt in browser and receive your 10-Digit Code & QR code.',
+      'Click Send File to encrypt in browser and receive your 6-Digit Code & QR code.',
       'Share the code or QR with the recipient to let them download.'
     ],
     whatHappensNext: 'Files are encrypted in your browser with AES-256-GCM. The recipient enters the code and decrypts the file on their device.',
@@ -95,11 +95,11 @@ export const FEATURE_EXPLANATIONS = [
     title: 'Burn After Read (Self-Destruct)',
     badge: 'Self-Destruct',
     badgeColor: 'badge-amber',
-    whatIsIt: 'File permanently self-destructs and is erased from server disk immediately once downloaded by the recipient.',
-    whyUseIt: 'Guarantees one-time delivery and prevents continued access after the intended recipient downloads the file.',
+    whatIsIt: 'Every file permanently self-destructs and is erased from server disk immediately once downloaded by the recipient. This is always enabled for every transfer.',
+    whyUseIt: 'Guarantees one-time delivery and ensures no residual data remains on any server. No data is ever stored on sender or receiver side.',
     howToUse: [
-      'Toggle Burn After Read ON under Sharing & Privacy Options.',
-      'Send your 10-digit transfer code or QR code to the recipient.',
+      'Burn After Read is always active — no toggle needed.',
+      'Send your 6-digit transfer code or QR code to the recipient.',
       'Once the recipient finishes downloading, the server permanently unlinks and purges the file.'
     ],
     whatHappensNext: 'The file blob and records are wiped. Any subsequent attempt to access the link or code shows "File Expired — This file was configured to self-destruct once downloaded."',
@@ -194,7 +194,7 @@ export const FEATURE_EXPLANATIONS = [
     whatIsIt: 'Package up to 20 files into a single transfer and preview photos, videos, music, PDFs, and code directly in the browser.',
     whyUseIt: 'Inspect file contents safely before saving, or download individual files selectively from a bundle.',
     howToUse: [
-      'Select up to 20 files during upload to create a bundle under a single 10-digit Transfer Code.',
+      'Select up to 20 files during upload to create a bundle under a single 6-digit Transfer Code.',
       'On the Receive screen, click "Preview Files" to open the interactive in-browser viewer.',
       'Download all files at once or save specific files individually.'
     ],
@@ -247,7 +247,7 @@ export const DATA_STORAGE_POLICY = {
       category: 'Client / Device Storage',
       storageLocation: 'Browser Memory & LocalStorage',
       whatStored: [
-        'Theme preference (light / dark / system) in localStorage',
+        'Theme preference (light / dark) in localStorage',
         'Decryption keys in URL hash (#key) or temporary memory only',
         'Temporary decrypted file blob URLs (revoked on modal close)'
       ],
@@ -263,10 +263,10 @@ export const QUICK_PICK_CARDS = [
   {
     icon: Upload,
     title: 'Standard Cloud Share',
-    question: 'Need to share files securely with a 10-digit Transfer Code or QR code?',
+    question: 'Need to share files securely with a 6-digit Transfer Code or QR code?',
     badge: 'Standard Mode',
     badgeColor: 'badge-primary',
-    answer: 'Use Cloud Encrypted. It encrypts in your browser, uploads a scrambled blob, and generates an instant 10-digit Transfer Code and QR code.',
+    answer: 'Use Cloud Encrypted. It encrypts in your browser, uploads a scrambled blob, and generates an instant 6-digit Transfer Code and QR code.',
     link: '/upload'
   },
   {
@@ -275,7 +275,7 @@ export const QUICK_PICK_CARDS = [
     question: 'Need the file to self-destruct immediately after recipient download?',
     badge: 'Self-Destruct',
     badgeColor: 'badge-amber',
-    answer: 'Turn on Burn After Read. The moment the recipient finishes downloading, all file data is permanently erased.',
+    answer: 'Burn After Read is always active on every transfer. The moment the recipient finishes downloading, all file data is permanently erased.',
     link: '/upload'
   },
   {
