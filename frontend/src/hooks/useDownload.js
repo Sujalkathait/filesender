@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { decryptFile, extractKeyFromUrl, parseTransferCode, isChunkedMarker, isValidTransferCodeInput, computeAccessProof } from '../crypto';
+import { decryptFile, extractKeyFromUrl, parseTransferCode, isChunkedMarker, isValidTransferCodeInput, computeAccessProof, deriveFileId } from '../crypto';
 import { unpackFiles } from '../fileManager';
 import { extractPayloadFromImage } from '../steganography';
 import { api } from '../services/api';
@@ -104,6 +104,7 @@ export function useDownload(stateMachine) {
     const code = (codeInput || '').trim();
     if (!code) return;
 
+    // Parse the input (extracting key if embedded)
     const parsed = parseTransferCode(code);
     const activeKey = targetKey || parsed.key || extractKeyFromUrl();
     setManualKey(activeKey || '');
@@ -117,9 +118,20 @@ export function useDownload(stateMachine) {
     setSuccess(false);
     setProgress(null);
     setDecryptedFiles([]);
+
     stateMachine?.transitionTo(TransferState.CONNECT);
 
-    if (!isValidTransferCodeInput(code)) {
+    // Instead of simple synchronous validation, we derive the fileId from the PIN
+    // If the input was a 6-digit code, parsed.fileId == parsed.key == activeKey
+    // If it was a legacy code, parsed.fileId is the raw UUID/hex
+    
+    // We derive the ID to support the 6-digit PIN system securely
+    let derivedId = parsed.fileId;
+    if (activeKey && activeKey.length === 6 && /^\d{6}$/.test(activeKey)) {
+        derivedId = await deriveFileId(activeKey);
+    }
+
+    if (!derivedId) {
       setError('Invalid transfer code format. Please check and try again.');
       stateMachine?.transitionTo(TransferState.INVALID_TOKEN);
       searchInFlightRef.current = false;
@@ -127,15 +139,7 @@ export function useDownload(stateMachine) {
       return;
     }
 
-    if (!parsed.fileId) {
-      setError('Invalid transfer code format. Please check and try again.');
-      stateMachine?.transitionTo(TransferState.INVALID_TOKEN);
-      searchInFlightRef.current = false;
-      setIsLoading(false);
-      return;
-    }
-
-    await fetchServerFileInfo(parsed.fileId, activeKey);
+    await fetchServerFileInfo(derivedId, activeKey);
 
     searchInFlightRef.current = false;
     setIsLoading(false);

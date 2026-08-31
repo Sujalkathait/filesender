@@ -26,6 +26,11 @@ export function extractKeyFromUrl() {
  * Create a clean, readable 6-digit OTP Transfer Code (numbers only, e.g. 839201)
  */
 export function createTransferCode(fileId, password) {
+  if (password && password.length === 6 && /^\d{6}$/.test(password)) {
+    return password; // Always return just the 6-digit PIN for new uploads
+  }
+  
+  // Legacy fallback
   const f = (fileId || '').toUpperCase();
   const p = (password || '').toUpperCase();
   if (!p || f === p) {

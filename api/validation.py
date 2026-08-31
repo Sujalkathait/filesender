@@ -74,6 +74,10 @@ def validate_upload_form(form: dict) -> dict:
     if transfer_id:
         transfer_id = validate_file_id(transfer_id)
 
+    file_id = (form.get("file_id") or "").strip()[:64] or None
+    if file_id:
+        file_id = validate_file_id(file_id)
+
     checksum = (form.get("checksum") or "").strip()[:64]
     if checksum and not re.match(r"^[A-Za-z0-9:_-]+$", checksum):
         raise ValidationError("Invalid checksum marker")
@@ -114,6 +118,7 @@ def validate_upload_form(form: dict) -> dict:
         "expiry_hours": expiry_hours,
         "sharing_mode": sharing_mode,
         "transfer_id": transfer_id,
+        "file_id": file_id,
         "checksum": checksum,
         "access_hash": access_hash,
         "wrapped_key": wrapped_key,

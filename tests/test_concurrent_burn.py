@@ -18,8 +18,8 @@ def storage_dir(tmp_path):
 def service(db_path, storage_dir):
     os.environ["DB_PATH"] = db_path
     os.environ["UPLOAD_DIR"] = storage_dir
-    db = DatabaseManager()
-    storage = StorageManager()
+    db = DatabaseManager(db_path)
+    storage = StorageManager(storage_dir)
     return TransferService(db, storage)
 
 def test_concurrent_burn_on_read(service, db_path):
@@ -31,10 +31,11 @@ def test_concurrent_burn_on_read(service, db_path):
         "salt": "fake_salt",
         "wrapped_key": "fake_wrapped_key",
         "wrap_iv": "fake_wrap_iv",
-        "compressed": "1",
-        "max_downloads": "1",
-        "burn_on_read": "1",
-        "expiry_seconds": "3600",
+        "compressed": 1,
+        "max_downloads": 1,
+        "burn_on_read": 1,
+        "expiry_seconds": 3600,
+        "expiry_hours": 1.0,
         "sharing_mode": "burn_on_read",
         "access_hash": "hash123"
     }
@@ -42,7 +43,12 @@ def test_concurrent_burn_on_read(service, db_path):
     res = service.init_chunked_upload(form_data, form_data["filename"], "application/octet-stream")
     file_id = res["file_id"]
     
-    db = DatabaseManager()
+    # Create empty mock file blob on disk
+    file_path = os.path.join(os.environ["UPLOAD_DIR"], file_id)
+    with open(file_path, "wb") as f:
+        f.write(b"mock")
+    
+    db = DatabaseManager(db_path)
     conn = db.get_connection()
     conn.execute("UPDATE files SET status = 'ready' WHERE id = ?", (file_id,))
     conn.commit()
@@ -53,8 +59,8 @@ def test_concurrent_burn_on_read(service, db_path):
     def download_attempt():
         try:
             # Re-initialize DB/Storage within the thread to simulate concurrent requests
-            thread_db = DatabaseManager()
-            thread_storage = StorageManager()
+            thread_db = DatabaseManager(os.environ.get("DB_PATH", db_path))
+            thread_storage = StorageManager(os.environ.get("UPLOAD_DIR", "uploads"))
             thread_service = TransferService(thread_db, thread_storage)
             thread_service.download_file(file_id, preview=False, proof="hash123")
             results.append("success")
@@ -70,10 +76,12 @@ def test_concurrent_burn_on_read(service, db_path):
         
     for t in threads:
         t.join()
-        
-    # Exactly ONE success, everything else should be not_found
+
+    print(f"Results: {results}")
+
+    # Exactly ONE success, everything else should be locked
     success_count = sum(1 for r in results if r == "success")
-    not_found_count = sum(1 for r in results if r == "not_found")
-    
+    locked_count = sum(1 for r in results if "currently being downloaded" in r)
+
     assert success_count == 1
-    assert not_found_count == 4
+    assert locked_count == 4

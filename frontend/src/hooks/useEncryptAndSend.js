@@ -139,7 +139,8 @@ export function useEncryptAndSend(stateMachine) {
         expiry_hours: (expirySecs / 3600).toFixed(6),
         sharing_mode: useSteganography && burnOnRead ? 'both' : useSteganography ? 'steganography' : burnOnRead ? 'burn_on_read' : 'standard',
         checksum: buildChunkMarker(encrypted.chunked),
-        access_hash: await computeAccessProof(encrypted.password)
+        access_hash: await computeAccessProof(encrypted.password),
+        file_id: encrypted.fileId
       };
 
       const data = await api.uploadSmart(uploadBlob, uploadMetadata, (p) => {

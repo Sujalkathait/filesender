@@ -78,8 +78,8 @@ class TransferService:
         wrapped_key = form_data.get("wrapped_key")
         wrap_iv = form_data.get("wrap_iv")
 
-        file_id = generate_id()
-        transfer_id = generate_id()
+        file_id = form_data.get("file_id") or generate_id()
+        transfer_id = form_data.get("transfer_id") or generate_id()
         owner_token = generate_owner_token()
         file_path = self.storage.get_file_path(file_id)
 
@@ -176,8 +176,8 @@ class TransferService:
         wrapped_key = form_data.get("wrapped_key")
         wrap_iv = form_data.get("wrap_iv")
 
-        file_id = generate_id()
-        transfer_id = generate_id()
+        file_id = form_data.get("file_id") or generate_id()
+        transfer_id = form_data.get("transfer_id") or generate_id()
         owner_token = generate_owner_token()
         now_utc = get_utc_now()
         created_at_iso = now_utc.isoformat()
@@ -361,12 +361,12 @@ class TransferService:
         except (IndexError, KeyError):
             stored = ""
         if stored:
-            locked_until = row.get("locked_until")
+            locked_until = row["locked_until"] if "locked_until" in row.keys() else None
             if locked_until and get_utc_now_iso() < locked_until:
                 raise NotFoundError("File not found or unauthorized")
 
             if not proofs_match(proof, stored):
-                failed_count = row.get("failed_proof_count", 0) + 1
+                failed_count = (row["failed_proof_count"] if "failed_proof_count" in row.keys() else 0) + 1
                 locked_until_val = None
                 if failed_count >= 5:
                     locked_until_val = (get_utc_now() + timedelta(minutes=10)).isoformat()
@@ -377,8 +377,8 @@ class TransferService:
                 )
                 conn.commit()
                 raise NotFoundError("File not found or unauthorized")
-            
-            if row.get("failed_proof_count", 0) > 0:
+            failed_count_val = row["failed_proof_count"] if "failed_proof_count" in row.keys() else 0
+            if failed_count_val > 0:
                 conn.execute("UPDATE files SET failed_proof_count = 0, locked_until = NULL WHERE id = ?", (file_id,))
                 conn.commit()
 
@@ -455,8 +455,8 @@ class TransferService:
                 "iv": row["iv"],
                 "salt": row["salt"],
                 "checksum": row["checksum"] or "",
-                "wrapped_key": row.get("wrapped_key", ""),
-                "wrap_iv": row.get("wrap_iv", "")
+                "wrapped_key": row["wrapped_key"] if "wrapped_key" in row.keys() else "",
+                "wrap_iv": row["wrap_iv"] if "wrap_iv" in row.keys() else ""
             }
         finally:
             conn.close()
@@ -542,8 +542,8 @@ class TransferService:
             "iv": row["iv"],
             "salt": row["salt"],
             "checksum": row["checksum"] or "",
-            "wrapped_key": row.get("wrapped_key", ""),
-            "wrap_iv": row.get("wrap_iv", "")
+            "wrapped_key": row["wrapped_key"] if "wrapped_key" in row.keys() else "",
+            "wrap_iv": row["wrap_iv"] if "wrap_iv" in row.keys() else ""
         }
 
         return row_dict, file_path, is_burn

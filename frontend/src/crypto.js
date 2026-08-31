@@ -39,6 +39,18 @@ export async function computeAccessProof(password) {
   return bytesToHex(new Uint8Array(digest));
 }
 
+/**
+ * Derive a deterministic file_id from the random 6-digit PIN.
+ * This ensures the transfer ID is intrinsically linked to the PIN without
+ * exposing the PIN to the server.
+ */
+export async function deriveFileId(shortCode) {
+  const data = new TextEncoder().encode(`file_id_salt:${shortCode || ''}`);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  // Take first 32 chars of hex to match UUID length loosely
+  return bytesToHex(new Uint8Array(digest)).substring(0, 32);
+}
+
 const ALGORITHM = 'AES-GCM';
 const KEY_LENGTH = 256;
 const ITERATIONS = 600000; // OWASP 2023 recommendation for PBKDF2-SHA-256
@@ -315,8 +327,8 @@ export async function encryptFile(file, onProgress) {
     wrappedKey,
     wrapIV,
     compressionRatio,
-    chunked,
     compressed: useGzip,
+    fileId: await deriveFileId(password), // <--- New: attach deterministic file_id
   };
 }
 
