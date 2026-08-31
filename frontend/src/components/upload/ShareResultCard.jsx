@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   CheckCircle2, Copy, Trash2, Plus, Flame, Key, Clock,
-  ShieldCheck, Share2, Eye, FileText, Check, Shield, QrCode, Maximize2
+  ShieldCheck, Eye, FileText, Check, Shield, QrCode, Maximize2
 } from 'lucide-react';
 import { formatBytes } from '../../utils/format';
 import { copyToClipboard } from '../../utils/clipboard';
-import { createShareMessage } from '../../crypto';
 import { FileCategoryIcon } from '../common/FileCategoryIcon';
 import { QRCodeModal } from './QRCodeModal';
 
@@ -15,7 +14,7 @@ import { QRCodeModal } from './QRCodeModal';
  * Primary Responsibility: Active Sender Dashboard Card rendered after successful upload.
  * Displays clean, organized telemetry boxes focused on the 6-Digit OTP Transfer Code:
  * 1. File Details & In-Browser Preview
- * 2. 6-Digit Transfer Code (Copy, WhatsApp, Share Text)
+ * 2. 6-Digit Transfer Code (Copy)
  * 3. Expiry Countdown (Live animated timer)
  * 4. Transfer Security & Zero-Knowledge Verification
  * Note: Users never see download counts, download history, or internal transfer statistics.
@@ -32,7 +31,6 @@ export function ShareResultCard({
   p2pState = 'idle'
 }) {
   const [now, setNow] = useState(Date.now());
-  const [copiedShareMsg, setCopiedShareMsg] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
@@ -60,32 +58,7 @@ export function ShareResultCard({
       : (Number(result.expiry_seconds) || Number(result.expiryHours) || 60)
   );
 
-  const handleShareMessage = async () => {
-    const msg = createShareMessage({
-      transferCode: result.transferCode,
-      shareUrl,
-      expirySeconds: initialDuration,
-      fileCount: result.fileCount || 1,
-      totalSize: formatBytes(result.originalSize)
-    });
-    const ok = await copyToClipboard(msg);
-    if (ok) {
-      setCopiedShareMsg(true);
-      setTimeout(() => setCopiedShareMsg(false), 2500);
-    }
-  };
 
-  const handleWhatsAppShare = () => {
-    const msg = createShareMessage({
-      transferCode: result.transferCode,
-      shareUrl,
-      expirySeconds: initialDuration,
-      fileCount: result.fileCount || 1,
-      totalSize: formatBytes(result.originalSize)
-    });
-    const encoded = encodeURIComponent(msg);
-    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank', 'noopener,noreferrer');
-  };
 
   return (
     <div className="upload-result sender-dashboard animate-in" role="region" aria-label="Sender Transfer Dashboard">
@@ -236,22 +209,6 @@ export function ShareResultCard({
                   <Copy size={16} /> Copy Code
                 </>
               )}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-md"
-              onClick={handleWhatsAppShare}
-              title="Share transfer code directly on WhatsApp"
-            >
-              <Share2 size={15} /> WhatsApp
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-md"
-              onClick={handleShareMessage}
-              title="Copy formatted message with transfer instructions"
-            >
-              <Copy size={15} /> {copiedShareMsg ? 'Copied' : 'Share Text'}
             </button>
           </div>
           <span className="dashboard-box-hint">

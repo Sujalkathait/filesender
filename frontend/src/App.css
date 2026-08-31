@@ -150,6 +150,8 @@
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
@@ -221,6 +223,7 @@ button, a, input, select, textarea {
   max-width: 1120px;
   margin: 0 auto;
   padding: var(--space-8) var(--space-4) var(--space-16);
+  overflow-x: hidden;
 }
 
 @media (max-width: 768px) {
@@ -5858,3 +5861,82 @@ button, a, input, select, textarea {
   border-color: var(--accent) !important;
 }
 
+
+/* ─── Global Width & Responsive Containment Fixes ────────────────────────── */
+
+/* Prevent any element from causing horizontal scroll */
+.app,
+.main-content,
+.page-container,
+.upload-result,
+.sender-dashboard,
+.sender-dashboard-grid-7,
+.sender-dashboard-grid-4 {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Ensure transfer code text doesn't overflow on small screens */
+.dashboard-code-text {
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+/* Mobile-specific width fixes */
+@media (max-width: 768px) {
+  .app {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .page-container {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .upload-result,
+  .sender-dashboard {
+    border-radius: var(--radius-lg);
+  }
+
+  .dashboard-box {
+    min-width: 0;
+  }
+
+  .sender-dashboard-grid-7,
+  .sender-dashboard-grid-4 {
+    grid-template-columns: 1fr !important;
+    gap: var(--space-3) !important;
+  }
+
+  .dashboard-code-actions-row {
+    flex-direction: column;
+  }
+
+  .dashboard-code-actions-row .btn {
+    width: 100%;
+  }
+
+  .result-actions-footer {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .result-actions-footer .btn {
+    width: 100%;
+  }
+
+  /* Prevent QR code from overflowing */
+  .sender-qr-inline-card {
+    max-width: 100%;
+    overflow: hidden;
+  }
+}
+
+/* Tablet and small desktop tweaks */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .sender-dashboard-grid-7,
+  .sender-dashboard-grid-4 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
