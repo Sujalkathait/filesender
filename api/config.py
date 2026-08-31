@@ -60,6 +60,11 @@ _raw_origins = os.environ.get("FRONTEND_ORIGIN", "*").strip()
 if _raw_origins == "*":
     FRONTEND_ORIGIN = "*"
     CORS_ORIGINS = "*"
+    if IS_PRODUCTION:
+        logger.warning(
+            "CORS is set to wildcard '*' in production. This is highly discouraged and insecure. "
+            "Set FRONTEND_ORIGIN to your frontend's actual URL."
+        )
 elif "," in _raw_origins:
     FRONTEND_ORIGIN = _raw_origins
     CORS_ORIGINS = [origin.strip() for origin in _raw_origins.split(",") if origin.strip()]
@@ -114,6 +119,8 @@ CORS_EXPOSE_HEADERS = [
     "X-Checksum",
     "X-Refresh-Count",
     "X-Max-Refreshes",
+    "X-Wrapped-Key",
+    "X-Wrap-IV",
 ]
 
 # ─── Network — STUN/TURN Servers ────────────────────────────────────────────

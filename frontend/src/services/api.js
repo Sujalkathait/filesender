@@ -202,6 +202,8 @@ async function downloadBlob(fileId, { preview = false, onProgress, proof } = {})
       checksum: response.headers.get('X-Checksum') || '',
       iv: response.headers.get('X-IV'),
       salt: response.headers.get('X-Salt'),
+      wrappedKey: response.headers.get('X-Wrapped-Key'),
+      wrapIV: response.headers.get('X-Wrap-IV'),
     },
   };
 }

@@ -211,14 +211,16 @@ export function useDownload(stateMachine) {
       const decryptedData = await decryptFile(
         encryptedPayloadBlob,
         key,
-        fileInfo.iv,
-        fileInfo.salt,
+        headers.iv || fileInfo.iv,
+        headers.salt || fileInfo.salt,
         (p) => {
           const basePercent = p.stage === 'complete' ? 100 : 76 + Math.round(p.percent * 0.24);
           throttle.push({ stage: p.stage, percent: basePercent });
         },
         chunked,
-        fileInfo.compressed !== false
+        fileInfo.compressed !== false,
+        headers.wrappedKey || fileInfo.wrapped_key || '',
+        headers.wrapIV || fileInfo.wrap_iv || ''
       );
       throttle.flush();
 

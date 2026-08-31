@@ -41,6 +41,12 @@ class CleanupService:
             if expired_ids:
                 placeholders = ",".join("?" for _ in expired_ids)
                 conn.execute(f"DELETE FROM files WHERE id IN ({placeholders})", expired_ids)
+                
+            # 1.5. Release stale reservations
+            from datetime import timedelta
+            from api.utils import get_utc_now
+            timeout_iso = (get_utc_now() - timedelta(minutes=5)).isoformat()
+            conn.execute("UPDATE files SET status = 'ready', reserved_at = NULL WHERE status = 'reserved' AND reserved_at < ?", (timeout_iso,))
 
             # 2. Expired transfers: purge their chunk dirs, then bulk-delete rows
             t_cursor = conn.execute("SELECT id, expires_at FROM transfers")

@@ -31,7 +31,6 @@ def apply_security_headers(response):
     """Attach standard web application security headers to an outgoing response."""
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = (
         "camera=(), microphone=(), geolocation=(), payment=()"
@@ -47,8 +46,9 @@ def apply_security_headers(response):
         "frame-ancestors 'none'; "
         "base-uri 'none'"
     )
-    # HSTS: enforce HTTPS (Vercel always terminates TLS)
-    if is_vercel:
+    # HSTS: enforce HTTPS
+    from api.config import IS_PRODUCTION
+    if IS_PRODUCTION:
         response.headers["Strict-Transport-Security"] = (
             "max-age=63072000; includeSubDomains; preload"
         )

@@ -61,7 +61,7 @@ class TransferService:
         if file_count > MAX_FILES_PER_TRANSFER:
             raise ValidationError(f"Maximum of {MAX_FILES_PER_TRANSFER} files allowed per transfer (got {file_count})")
 
-        transfer_id = form_data["transfer_id"]
+        transfer_id = None
         self._check_system_user_capacity(transfer_id)
 
         iv = form_data["iv"]
@@ -75,9 +75,11 @@ class TransferService:
         sharing_mode = form_data["sharing_mode"]
         checksum = (form_data.get("checksum") or "").strip()[:64]
         access_hash = form_data["access_hash"]
+        wrapped_key = form_data.get("wrapped_key")
+        wrap_iv = form_data.get("wrap_iv")
 
-        file_id = form_data.get("transfer_id") or generate_id()
-        transfer_id = transfer_id or file_id
+        file_id = generate_id()
+        transfer_id = generate_id()
         owner_token = generate_owner_token()
         file_path = self.storage.get_file_path(file_id)
 
@@ -112,12 +114,12 @@ class TransferService:
             # Insert file metadata
             conn.execute("""
                 INSERT INTO files (id, transfer_id, filename, original_name, original_size, encrypted_size,
-                                  mime_type, created_at, expires_at, download_count, max_downloads, iv, salt, compressed, checksum, burn_on_read, status, access_hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'ready', ?)
+                                  mime_type, created_at, expires_at, download_count, max_downloads, iv, salt, compressed, checksum, burn_on_read, status, access_hash, wrapped_key, wrap_iv)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'ready', ?, ?, ?)
             """, (
                 file_id, transfer_id, file_obj.filename or "file.encrypted", original_name, original_size, encrypted_size,
                 file_obj.content_type or "application/octet-stream", created_at_iso, expires_at_iso,
-                effective_max_downloads, iv, salt, compressed, checksum, burn_on_read, access_hash
+                effective_max_downloads, iv, salt, compressed, checksum, burn_on_read, access_hash, wrapped_key, wrap_iv
             ))
 
             conn.commit()
@@ -157,7 +159,7 @@ class TransferService:
         if file_count > MAX_FILES_PER_TRANSFER:
             raise ValidationError(f"Maximum of {MAX_FILES_PER_TRANSFER} files allowed per transfer (got {file_count})")
 
-        transfer_id = form_data["transfer_id"]
+        transfer_id = None
         self._check_system_user_capacity(transfer_id)
 
         iv = form_data["iv"]
@@ -171,9 +173,11 @@ class TransferService:
         sharing_mode = form_data["sharing_mode"]
         checksum = (form_data.get("checksum") or "").strip()[:64]
         access_hash = form_data["access_hash"]
+        wrapped_key = form_data.get("wrapped_key")
+        wrap_iv = form_data.get("wrap_iv")
 
-        file_id = form_data.get("transfer_id") or generate_id()
-        transfer_id = transfer_id or file_id
+        file_id = generate_id()
+        transfer_id = generate_id()
         owner_token = generate_owner_token()
         now_utc = get_utc_now()
         created_at_iso = now_utc.isoformat()
@@ -191,12 +195,12 @@ class TransferService:
 
             conn.execute("""
                 INSERT INTO files (id, transfer_id, filename, original_name, original_size, encrypted_size,
-                                  mime_type, created_at, expires_at, download_count, max_downloads, iv, salt, compressed, checksum, burn_on_read, status, access_hash)
-                VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'uploading', ?)
+                                  mime_type, created_at, expires_at, download_count, max_downloads, iv, salt, compressed, checksum, burn_on_read, status, access_hash, wrapped_key, wrap_iv)
+                VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?)
             """, (
                 file_id, transfer_id, filename or "file.encrypted", original_name, original_size,
                 content_type or "application/octet-stream", created_at_iso, expires_at_iso,
-                effective_max_downloads, iv, salt, compressed, checksum, burn_on_read, access_hash
+                effective_max_downloads, iv, salt, compressed, checksum, burn_on_read, access_hash, wrapped_key, wrap_iv
             ))
             conn.commit()
         finally:
@@ -350,14 +354,33 @@ class TransferService:
 
     # ─── File info ──────────────────────────────────────────────────────────
 
-    def _require_access_proof(self, row, proof: str):
+    def _require_access_proof(self, conn, file_id: str, row: dict, proof: str):
         stored = ""
         try:
             stored = row["access_hash"] or ""
         except (IndexError, KeyError):
             stored = ""
-        if stored and not proofs_match(proof, stored):
-            raise ForbiddenError("Access proof required")
+        if stored:
+            locked_until = row.get("locked_until")
+            if locked_until and get_utc_now_iso() < locked_until:
+                raise NotFoundError("File not found or unauthorized")
+
+            if not proofs_match(proof, stored):
+                failed_count = row.get("failed_proof_count", 0) + 1
+                locked_until_val = None
+                if failed_count >= 5:
+                    locked_until_val = (get_utc_now() + timedelta(minutes=10)).isoformat()
+                
+                conn.execute(
+                    "UPDATE files SET failed_proof_count = ?, locked_until = ? WHERE id = ?",
+                    (failed_count, locked_until_val, file_id)
+                )
+                conn.commit()
+                raise NotFoundError("File not found or unauthorized")
+            
+            if row.get("failed_proof_count", 0) > 0:
+                conn.execute("UPDATE files SET failed_proof_count = 0, locked_until = NULL WHERE id = ?", (file_id,))
+                conn.commit()
 
     def get_file_info(self, file_id: str, proof: str = "") -> dict:
         """
@@ -385,7 +408,7 @@ class TransferService:
                     ).fetchone()
 
             if not row:
-                raise NotFoundError("Transfer not found or expired")
+                raise NotFoundError("File not found or unauthorized")
 
             if is_expired(row["expires_at"]):
                 raise GoneError("This file is no longer available because the sharing time limit has expired.")
@@ -402,7 +425,7 @@ class TransferService:
             if row["max_downloads"] > 0 and row["download_count"] >= row["max_downloads"]:
                 raise GoneError("The download limit has been reached. This file is no longer available.")
 
-            self._require_access_proof(row, proof)
+            self._require_access_proof(conn, row["id"], row, proof)
 
             downloads_remaining = None
             if row["max_downloads"] > 0:
@@ -431,7 +454,9 @@ class TransferService:
                 "status": row["status"] or "ready",
                 "iv": row["iv"],
                 "salt": row["salt"],
-                "checksum": row["checksum"] or ""
+                "checksum": row["checksum"] or "",
+                "wrapped_key": row.get("wrapped_key", ""),
+                "wrap_iv": row.get("wrap_iv", "")
             }
         finally:
             conn.close()
@@ -451,7 +476,7 @@ class TransferService:
             ).fetchone()
 
             if not row:
-                raise NotFoundError("File not found or expired")
+                raise NotFoundError("File not found or unauthorized")
 
             if is_expired(row["expires_at"]):
                 raise GoneError("This file is no longer available because the sharing time limit has expired.")
@@ -468,7 +493,7 @@ class TransferService:
             if row["max_downloads"] > 0 and row["download_count"] >= row["max_downloads"]:
                 raise GoneError("The download limit has been reached. This file is no longer available.")
 
-            self._require_access_proof(row, proof)
+            self._require_access_proof(conn, row["id"], row, proof)
 
             if preview:
                 conn.execute("""
@@ -484,6 +509,20 @@ class TransferService:
                     (bool(row["burn_on_read"]) and (row["max_downloads"] == 0 or next_count >= row["max_downloads"]))
                     or (row["max_downloads"] > 0 and next_count >= row["max_downloads"])
                 )
+                
+                # Atomic reservation for burn-on-read
+                if bool(row["burn_on_read"]):
+                    timeout_iso = (get_utc_now() - timedelta(minutes=5)).isoformat()
+                    updated = conn.execute("""
+                        UPDATE files
+                        SET reserved_at = ?, status = 'reserved'
+                        WHERE id = ? AND (status = 'ready' OR (status = 'reserved' AND reserved_at < ?))
+                        RETURNING id
+                    """, (get_utc_now_iso(), file_id, timeout_iso)).fetchone()
+                    
+                    if not updated:
+                        raise GoneError("This file is currently being downloaded or has already been burned.")
+                    conn.commit()
         finally:
             conn.close()
 
@@ -503,6 +542,8 @@ class TransferService:
             "iv": row["iv"],
             "salt": row["salt"],
             "checksum": row["checksum"] or "",
+            "wrapped_key": row.get("wrapped_key", ""),
+            "wrap_iv": row.get("wrap_iv", "")
         }
 
         return row_dict, file_path, is_burn

@@ -284,6 +284,10 @@ def download_file(file_id):
     response.headers["X-IV"] = row["iv"]
     response.headers["X-Salt"] = row["salt"]
     response.headers["X-Compressed"] = str(row["compressed"])
+    if row.get("wrapped_key"):
+        response.headers["X-Wrapped-Key"] = row["wrapped_key"]
+    if row.get("wrap_iv"):
+        response.headers["X-Wrap-IV"] = row["wrap_iv"]
     if row.get("checksum"):
         response.headers["X-Checksum"] = row["checksum"]
     return response
@@ -309,3 +313,23 @@ def get_stats():
     if request.method == "OPTIONS":
         return ("", 204)
     return jsonify(_transfer_service.get_stats())
+
+
+@file_bp.route("/api/cleanup", methods=["GET", "POST", "OPTIONS"], strict_slashes=False)
+def trigger_cleanup():
+    """Trigger background cleanup. Protected by Vercel cron header or SECRET_KEY."""
+    if request.method == "OPTIONS":
+        return ("", 204)
+        
+    auth_header = request.headers.get("Authorization", "")
+    cron_header = request.headers.get("x-vercel-cron", "")
+    
+    from api.config import SECRET_KEY
+    if cron_header != "1" and auth_header != f"Bearer {SECRET_KEY}":
+        raise ForbiddenError("Unauthorized cron trigger")
+        
+    from api.services.cleanup_service import CleanupService
+    cleanup = CleanupService(_transfer_service.db, _transfer_service.storage)
+    cleanup.run()
+    
+    return jsonify({"message": "Cleanup executed successfully"})

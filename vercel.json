@@ -38,6 +38,12 @@
   "env": {
     "DB_PATH": "/tmp/app.db",
     "UPLOAD_DIR": "/tmp/uploads"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cleanup",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }
 

@@ -97,6 +97,16 @@ def create_app():
     # Security headers middleware
     app.after_request(apply_security_headers)
 
+    # Vercel probabilistic cleanup
+    if is_vercel:
+        @app.before_request
+        def vercel_probabilistic_cleanup():
+            import random
+            # 5% chance to run cleanup on request since there is no background thread
+            if random.random() < 0.05:
+                # Use a fire-and-forget thread so we don't block the request response
+                threading.Thread(target=cleanup_service.run, daemon=True).start()
+
     # Centralized error handling & SPA fallback
     register_error_handlers(app, _PROJECT_ROOT)
 

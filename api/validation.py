@@ -62,6 +62,14 @@ def validate_upload_form(form: dict) -> dict:
     if sharing_mode not in SHARING_MODES:
         sharing_mode = "standard"
 
+    wrapped_key = (form.get("wrapped_key") or "").strip().lower()
+    if wrapped_key and not HEX_STR_RE.match(wrapped_key):
+        raise ValidationError("wrapped_key must be a hex string")
+
+    wrap_iv = (form.get("wrap_iv") or "").strip().lower()
+    if wrap_iv and not HEX_STR_RE.match(wrap_iv):
+        raise ValidationError("wrap_iv must be a hex string")
+
     transfer_id = (form.get("transfer_id") or "").strip()[:64] or None
     if transfer_id:
         transfer_id = validate_file_id(transfer_id)
@@ -108,6 +116,8 @@ def validate_upload_form(form: dict) -> dict:
         "transfer_id": transfer_id,
         "checksum": checksum,
         "access_hash": access_hash,
+        "wrapped_key": wrapped_key,
+        "wrap_iv": wrap_iv,
     }
 
 

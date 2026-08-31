@@ -57,7 +57,12 @@ class DatabaseManager:
                 burn_on_read INTEGER DEFAULT 0,
                 preview_count INTEGER DEFAULT 0,
                 status TEXT DEFAULT 'ready',
-                access_hash TEXT
+                access_hash TEXT,
+                wrapped_key TEXT,
+                wrap_iv TEXT,
+                reserved_at TIMESTAMP,
+                failed_proof_count INTEGER DEFAULT 0,
+                locked_until TIMESTAMP
             )
         """)
 
@@ -65,8 +70,6 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS transfers (
                 id TEXT PRIMARY KEY,
                 token_hash TEXT,
-                sender_ip TEXT,
-                receiver_ip TEXT,
                 status TEXT DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 expires_at TIMESTAMP,
@@ -107,7 +110,12 @@ class DatabaseManager:
             ("transfers", "file_count", "INTEGER DEFAULT 1"),
             ("transfers", "sharing_mode", "TEXT DEFAULT 'standard'"),
             ("transfers", "burn_on_read", "INTEGER DEFAULT 0"),
-            ("transfers", "expires_at", "TIMESTAMP")
+            ("transfers", "expires_at", "TIMESTAMP"),
+            ("files", "wrapped_key", "TEXT"),
+            ("files", "wrap_iv", "TEXT"),
+            ("files", "reserved_at", "TIMESTAMP"),
+            ("files", "failed_proof_count", "INTEGER DEFAULT 0"),
+            ("files", "locked_until", "TIMESTAMP")
         ]
         for table, col, col_type in columns_to_add:
             try:
@@ -115,9 +123,17 @@ class DatabaseManager:
             except sqlite3.OperationalError:
                 pass
 
-        # Indexes for the queries that run most often (expiry sweeps, lookups)
+        # Try to drop sender_ip and receiver_ip (SQLite ALTER TABLE DROP COLUMN is supported in newer versions, but we can safely ignore errors)
+        for col in ["sender_ip", "receiver_ip"]:
+            try:
+                conn.execute(f"ALTER TABLE transfers DROP COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass
+
+        # Indexes for the queries that run most often (expiry sweeps, lookups, reservations)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_files_expires ON files(expires_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_files_transfer ON files(transfer_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_files_status_reserved ON files(status, reserved_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_transfers_expires ON transfers(expires_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_chunks_transfer ON chunks(transfer_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_chunks_file ON chunks(file_id)")

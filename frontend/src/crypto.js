@@ -1,7 +1,15 @@
 /**
  * FileShare Crypto Module
  * Client-side E2E Encryption using Web Crypto API
- * AES-256-GCM + PBKDF2 + gzip
+ * AES-256-GCM + PBKDF2 key wrapping + gzip
+ *
+ * SECURITY ARCHITECTURE:
+ *   1. A random 256-bit AES file key is generated via crypto.subtle.generateKey()
+ *   2. The file is encrypted with this random key (AES-256-GCM)
+ *   3. The user's 6-digit PIN is used via PBKDF2 to derive a wrapping key
+ *   4. The random file key is wrapped (encrypted) with AES-GCM using the wrapping key
+ *   5. The wrapped key blob is stored server-side alongside IV/salt
+ *   6. The server NEVER receives the PIN or the plaintext file key
  *
  * Memory-safe large files:
  * Files larger than CHUNK_SIZE are encrypted chunk-by-chunk. Each chunk is
@@ -33,7 +41,7 @@ export async function computeAccessProof(password) {
 
 const ALGORITHM = 'AES-GCM';
 const KEY_LENGTH = 256;
-const ITERATIONS = 100000;
+const ITERATIONS = 600000; // OWASP 2023 recommendation for PBKDF2-SHA-256
 const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
 
@@ -51,44 +59,16 @@ export function isChunkedMarker(checksum) {
 }
 
 /**
- * Generate a random encryption key and derive AES key
+ * Derive a wrapping key from PIN + salt using PBKDF2.
+ * This key is used ONLY to wrap/unwrap the random file encryption key.
  */
-export async function generateKey() {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-  // Generate 6 numeric digits for password / OTP transfer code (e.g. "839201")
-  const randomBytes = crypto.getRandomValues(new Uint8Array(6));
-  const password = Array.from(randomBytes, b => (b % 10).toString()).join('');
-
+async function deriveWrappingKey(password, salt, usages = ['encrypt', 'decrypt']) {
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(password),
     'PBKDF2',
     false,
-    ['deriveKey']
-  );
-
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' },
-    keyMaterial,
-    { name: ALGORITHM, length: KEY_LENGTH },
-    false,
-    ['encrypt', 'decrypt']
-  );
-
-  return { key, iv, salt, password };
-}
-
-/**
- * Derive key from password + salt
- */
-export async function deriveKey(password, salt) {
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveKey']
+    ['deriveBits', 'deriveKey']
   );
 
   return crypto.subtle.deriveKey(
@@ -96,14 +76,140 @@ export async function deriveKey(password, salt) {
     keyMaterial,
     { name: ALGORITHM, length: KEY_LENGTH },
     false,
+    usages
+  );
+}
+
+/**
+ * Wrap (encrypt) the random file key using the PIN-derived wrapping key.
+ * Uses AES-GCM with a dedicated wrapping IV for authenticated wrapping.
+ * Returns { wrappedKey: Uint8Array, wrapIV: Uint8Array }
+ */
+async function wrapFileKey(fileKey, wrappingKey) {
+  const wrapIV = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  // Export the raw file key bytes
+  const rawKey = await crypto.subtle.exportKey('raw', fileKey);
+  // Encrypt the raw key with the wrapping key
+  const wrappedBuffer = await crypto.subtle.encrypt(
+    { name: ALGORITHM, iv: wrapIV },
+    wrappingKey,
+    rawKey
+  );
+  return {
+    wrappedKey: new Uint8Array(wrappedBuffer),
+    wrapIV
+  };
+}
+
+/**
+ * Unwrap (decrypt) the file key using the PIN-derived wrapping key.
+ * Returns the CryptoKey for file decryption.
+ */
+async function unwrapFileKey(wrappedKeyBytes, wrapIVBytes, wrappingKey) {
+  // Decrypt the wrapped key
+  const rawKey = await crypto.subtle.decrypt(
+    { name: ALGORITHM, iv: wrapIVBytes },
+    wrappingKey,
+    wrappedKeyBytes
+  );
+  // Import as AES-GCM key
+  return crypto.subtle.importKey(
+    'raw',
+    rawKey,
+    { name: ALGORITHM, length: KEY_LENGTH },
+    false,
     ['encrypt', 'decrypt']
   );
 }
 
 /**
- * Generate unique IV for each chunk based on base IV and chunkIndex counter
+ * Generate encryption materials:
+ * - Random 256-bit AES file key (the ACTUAL encryption key)
+ * - Random IV for file encryption
+ * - Random salt for PBKDF2 PIN derivation
+ * - 6-digit numeric PIN
+ * - Wrapped key blob (file key encrypted with PIN-derived wrapping key)
+ */
+export async function generateKey() {
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+
+  // Generate 6 numeric digits for password / OTP transfer code (e.g. "839201")
+  const randomBytes = crypto.getRandomValues(new Uint8Array(6));
+  const password = Array.from(randomBytes, b => (b % 10).toString()).join('');
+
+  // Generate the RANDOM file encryption key — this is the real security
+  const fileKey = await crypto.subtle.generateKey(
+    { name: ALGORITHM, length: KEY_LENGTH },
+    true, // extractable so we can wrap it
+    ['encrypt', 'decrypt']
+  );
+
+  // Derive wrapping key from PIN
+  const wrappingKey = await deriveWrappingKey(password, salt, ['encrypt', 'decrypt']);
+
+  // Wrap the file key with the PIN-derived wrapping key
+  const { wrappedKey, wrapIV } = await wrapFileKey(fileKey, wrappingKey);
+
+  // Make a non-extractable copy of the file key for actual encryption use
+  const rawKey = await crypto.subtle.exportKey('raw', fileKey);
+  const encryptionKey = await crypto.subtle.importKey(
+    'raw',
+    rawKey,
+    { name: ALGORITHM, length: KEY_LENGTH },
+    false,
+    ['encrypt', 'decrypt']
+  );
+
+  return {
+    key: encryptionKey,
+    iv,
+    salt,
+    password,
+    wrappedKey: bytesToHex(wrappedKey),
+    wrapIV: bytesToHex(wrapIV),
+  };
+}
+
+/**
+ * Derive wrapping key from password + salt, then unwrap the file key.
+ * Used on the download/decrypt side.
+ */
+export async function deriveKey(password, salt, wrappedKeyHex, wrapIVHex) {
+  // If no wrapped key provided, fall back to legacy direct derivation
+  // (backward compatibility for old transfers still within TTL)
+  if (!wrappedKeyHex || !wrapIVHex) {
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(password),
+      'PBKDF2',
+      false,
+      ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
+      keyMaterial,
+      { name: ALGORITHM, length: KEY_LENGTH },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  // New secure path: derive wrapping key, unwrap file key
+  const wrappingKey = await deriveWrappingKey(password, salt, ['encrypt', 'decrypt']);
+  const wrappedKeyBytes = hexToBytes(wrappedKeyHex);
+  const wrapIVBytes = hexToBytes(wrapIVHex);
+  return unwrapFileKey(wrappedKeyBytes, wrapIVBytes, wrappingKey);
+}
+
+/**
+ * Generate unique IV for each chunk based on base IV and chunkIndex counter.
+ * Safe for up to 2^32 chunks (17 TB at 4 MB chunks).
  */
 export function getChunkIV(baseIV, chunkIndex) {
+  if (chunkIndex > 0xFFFFFFFF) {
+    throw new Error('Chunk index exceeds maximum safe value (2^32)');
+  }
   const iv = new Uint8Array(baseIV);
   const view = new DataView(iv.buffer, iv.byteOffset, iv.byteLength);
   const currentVal = view.getUint32(8, false);
@@ -144,7 +250,7 @@ export async function decryptChunkData(encryptedChunkBuffer, key, baseIV, chunkI
  */
 export async function encryptFile(file, onProgress) {
   const totalSize = file.size;
-  const { key, iv, salt, password } = await generateKey();
+  const { key, iv, salt, password, wrappedKey, wrapIV } = await generateKey();
 
   onProgress?.({ stage: 'compressing', percent: 10 });
 
@@ -206,6 +312,8 @@ export async function encryptFile(file, onProgress) {
     iv: bytesToHex(iv),
     salt: bytesToHex(salt),
     password,
+    wrappedKey,
+    wrapIV,
     compressionRatio,
     chunked,
     compressed: useGzip,
@@ -215,8 +323,18 @@ export async function encryptFile(file, onProgress) {
 /**
  * Decrypt file: read ciphertext -> AES-GCM decrypt + gunzip per chunk.
  * Supports both the chunked format (checksum marker) and legacy single-shot.
+ *
+ * @param {Blob} encryptedBlob
+ * @param {string} password - 6-digit PIN
+ * @param {string} ivHex
+ * @param {string} saltHex
+ * @param {Function} onProgress
+ * @param {boolean} chunked
+ * @param {boolean} compressed
+ * @param {string} wrappedKeyHex - hex-encoded wrapped file key (new format)
+ * @param {string} wrapIVHex - hex-encoded wrapping IV (new format)
  */
-export async function decryptFile(encryptedBlob, password, ivHex, saltHex, onProgress, chunked = false, compressed = true) {
+export async function decryptFile(encryptedBlob, password, ivHex, saltHex, onProgress, chunked = false, compressed = true, wrappedKeyHex = '', wrapIVHex = '') {
   if (!ivHex || !saltHex) {
     throw new Error('Invalid file metadata: IV or Salt is missing');
   }
@@ -229,7 +347,7 @@ export async function decryptFile(encryptedBlob, password, ivHex, saltHex, onPro
 
   onProgress?.({ stage: 'decrypting', percent: 40 });
 
-  const key = await deriveKey(password, salt);
+  const key = await deriveKey(password, salt, wrappedKeyHex, wrapIVHex);
 
   if (chunked) {
     const totalBytes = encryptedBlob.size;

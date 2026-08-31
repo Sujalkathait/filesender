@@ -11,7 +11,22 @@ ACCESS_PROOF_PREFIX = "fileshare-access:"
 
 
 def generate_id() -> str:
-    """6-digit numeric ID for OTP-style transfer code (e.g. '839201')."""
+    """128-bit cryptographically random hex identifier (32 chars).
+
+    Used for transfer IDs and file IDs. Provides:
+    - 2^128 possible values (no realistic collision risk)
+    - Unpredictable / non-enumerable
+    - Safe for use in URLs
+    """
+    return secrets.token_hex(16)
+
+
+def generate_pin() -> str:
+    """6-digit numeric PIN for user-facing OTP transfer code (e.g. '839201').
+
+    This is the user-facing code only — never used as encryption key material
+    or as a database identifier.
+    """
     return "".join(secrets.choice("0123456789") for _ in range(6))
 
 
