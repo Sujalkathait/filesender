@@ -20,10 +20,40 @@ Traditional file-sharing services (like Google Drive or email) store your files 
 - **QR Code & PIN sharing:** Easy mobile-friendly receiver access.
 - **Stream & Batch Processing:** Handles single large files via streaming or multiple files by batching them into encrypted bundles.
 
-### High-Performance Characteristics
-FileShare is engineered for "High-Performance" by avoiding memory bottlenecks:
-- **Zero-Copy Encryption (Stream Processing):** Instead of loading a 1 GB file entirely into RAM (which would crash the browser), it uses the HTML5 `File.slice()` API to stream small chunks (4 MB) from the hard drive, encrypts them, and streams them out.
-- **Batched Transfers:** When a user selects multiple files, the frontend seamlessly batches them into a single `.bundle` payload. This significantly reduces network overhead and database calls compared to transferring 100 individual files separately.
+### High-Performance Stream & Batch Processing
+FileShare is engineered to handle massive workloads on constrained devices (like mobile phones) and serverless environments by utilizing two advanced data processing techniques: **Stream Processing** and **Batch Processing**.
+
+#### 1. Stream Processing (Zero-Copy Encryption)
+When a user uploads a large file (e.g., 1 GB), loading the entire file into the browser's RAM at once would cause the browser to crash or freeze. FileShare solves this using **Stream Processing**.
+
+Instead of reading the whole file, it uses the HTML5 `File.slice()` API to read a small 4 MB chunk directly from the hard drive. It encrypts this single chunk, uploads it, and then discards it from memory before reading the next one. This keeps the application's memory footprint flat (around 4 MB) regardless of the total file size.
+
+**Stream Processing Diagram:**
+```mermaid
+graph TD
+    A[Hard Drive: 1GB File] -->|File.slice| B(Read 4MB Chunk)
+    B --> C{Encrypt in Browser RAM}
+    C -->|Network| D[Upload to Server]
+    D -->|Garbage Collect| E((Memory Freed))
+    E -->|Loop until EOF| B
+```
+
+#### 2. Batch Processing (Multi-File Bundling)
+If a user wants to send 100 small photos, making 100 separate HTTP requests (and doing 100 database inserts) would cause massive network overhead and latency due to TCP handshake delays. FileShare solves this using **Batch Processing**.
+
+When multiple files are selected, the frontend batches them together into a single virtual archive (a `.bundle`). The entire batch is encrypted with a single AES key and transferred as one continuous stream. The receiver downloads one file and their browser splits it back into the original 100 photos.
+
+**Batch Processing Diagram:**
+```mermaid
+graph TD
+    A[Photo 1] --> B{Batch Processor}
+    C[Photo 2] --> B
+    D[Photo N] --> B
+    B -->|Bundle into single stream| E[Encrypt as ONE payload]
+    E -->|Single HTTP Request| F[Server]
+    F -->|Single Download| G[Receiver Browser]
+    G -->|Unbatch| H[Photo 1, 2, N]
+```
 
 ### Data Storage Duration
 Files are stored **temporarily**. The system is ephemeral. On platforms like Vercel, it uses the serverless `/tmp` directory. Background cleanup services and cron jobs automatically delete expired files.
