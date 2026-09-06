@@ -1,0 +1,224 @@
+# FileShare Project — Complete Technical Explanation
+
+This document provides a comprehensive technical architecture overview of the **FileShare** application, designed to be easily understood for a B.Tech CSE project viva or presentation.
+
+---
+
+## 1. Project Overview
+
+### What is FileShare?
+FileShare is a high-performance, secure, end-to-end encrypted file transfer application. It allows users to share files over the internet securely, generating a unique 6-digit PIN and a QR code for the receiver to download the file.
+
+### Real-World Problem Solved
+Traditional file-sharing services (like Google Drive or email) store your files unencrypted on their servers, meaning the provider can read your data. They also impose strict file size limits. FileShare solves this by encrypting the file *in the browser* before it even touches the network, and it handles large files (up to 1 GB) using a memory-safe chunking mechanism.
+
+### Main Features
+- **End-to-End Encryption (E2E):** The server never sees the unencrypted file or the encryption key.
+- **Chunked Uploads:** Large files are uploaded in small pieces to bypass server limits.
+- **Burn-on-Read:** Files can be configured to self-destruct after one download.
+- **WebRTC Data Channels:** Peer-to-peer real-time sharing (where available).
+- **QR Code & PIN sharing:** Easy mobile-friendly receiver access.
+- **Stream & Batch Processing:** Handles single large files via streaming or multiple files by batching them into encrypted bundles.
+
+### High-Performance Characteristics
+FileShare is engineered for "High-Performance" by avoiding memory bottlenecks:
+- **Zero-Copy Encryption (Stream Processing):** Instead of loading a 1 GB file entirely into RAM (which would crash the browser), it uses the HTML5 `File.slice()` API to stream small chunks (4 MB) from the hard drive, encrypts them, and streams them out.
+- **Batched Transfers:** When a user selects multiple files, the frontend seamlessly batches them into a single `.bundle` payload. This significantly reduces network overhead and database calls compared to transferring 100 individual files separately.
+
+### Data Storage Duration
+Files are stored **temporarily**. The system is ephemeral. On platforms like Vercel, it uses the serverless `/tmp` directory. Background cleanup services and cron jobs automatically delete expired files.
+
+---
+
+## 2. Network Architecture
+
+### Client-Server vs Peer-to-Peer
+FileShare is a **Hybrid Architecture**:
+1. **Client-Server (Primary):** The sender (Client) uploads the encrypted file to the Flask backend (Server). The receiver (Client) downloads it from the Server. 
+2. **Peer-to-Peer (WebRTC extension):** If both users are online, the system can attempt to use WebRTC to transfer data directly between browsers without storing the file on the server. However, the REST API acts as the primary reliable fallback.
+
+### Request-Response Flow (Client-Server)
+1. **Sender (Client A)** initiates a REST API `POST` request to the Server to upload the file.
+2. **Server** saves the file to disk/memory and stores metadata in a database.
+3. **Receiver (Client B)** sends a `GET` request to the Server using the PIN.
+4. **Server** responds with the encrypted file.
+
+### Simple Architecture Diagram
+```mermaid
+graph LR
+    A[Sender Browser] -->|Encrypt & Upload| B(Flask Server / Vercel)
+    B -->|Store| C[(SQLite DB + Temp Disk)]
+    D[Receiver Browser] -->|PIN / QR| B
+    B -->|Download| D
+    D -->|Decrypt| E[Original File]
+```
+
+---
+
+## 3. Protocols Used
+
+| Protocol | Layer | Why it is used / What it does in FileShare |
+| :--- | :--- | :--- |
+| **HTTPS (TLS)** | Application | Ensures the connection to the server is secure. Protects the API calls from eavesdropping. |
+| **HTTP/1.1 or H2** | Application | Used for REST API calls (uploading chunks, fetching metadata). Carries JSON and binary file payloads. |
+| **WebSocket** | Application | Used for real-time signaling. The sender and receiver can exchange WebRTC connection details instantly. |
+| **WebRTC** | Application | Used for direct Peer-to-Peer data transfers. |
+| **TCP** | Transport | Underlying protocol for HTTP and WebSockets. Ensures reliable, ordered, and error-checked delivery of file chunks. |
+| **UDP** | Transport | Used by WebRTC for fast, real-time data streaming where minor packet loss is acceptable but speed is critical. |
+| **STUN/TURN/ICE**| Application/Network| STUN finds the public IP of the user. TURN acts as a relay if a direct P2P connection fails due to strict NAT/Firewalls. ICE negotiates the best connection path. |
+| **IP** | Network | Routes packets across the internet from the user's ISP to the Vercel server. |
+| **DNS** | Application | Resolves the domain into an IP address. |
+
+---
+
+## 4. OSI and TCP/IP Model Mapping
+
+### During a File Upload:
+
+**TCP/IP Model Perspective:**
+1. **Application Layer:** The React frontend uses JavaScript HTTP requests (XHR/Fetch) to send a chunk of the encrypted file.
+2. **Transport Layer:** The OS network stack creates a **TCP segment**, adding source/destination ports (e.g., port 443 for HTTPS). It ensures the chunk arrives intact.
+3. **Internet Layer:** IP adds routing headers to create an **IP Packet**, addressing it to the server's IP.
+4. **Network Access Layer:** The packet is framed (e.g., Ethernet or Wi-Fi frame) and converted into electrical/radio signals (Physical layer) to send to the router.
+
+---
+
+## 5. Data Transmission & Flow 
+
+### The Complete Data Flow Pipeline
+
+`Sender File` ➔ `File Reading (ArrayBuffer slice)` ➔ `Chunking (4MB)` ➔ `Gzip Compression` ➔ `AES-256-GCM Encryption` ➔ `HTTP PUT (Network Packet)` ➔ `Server (/tmp disk)` ➔ `Receiver HTTP GET` ➔ `AES-256-GCM Decryption` ➔ `Gunzip Decompression` ➔ `Chunk Reassembly` ➔ `Original File`
+
+### Chunking Details (Stream Processing)
+- **Why?** Serverless platforms like Vercel have strict limits (e.g., max 4.5 MB per request). If a user uploads a 100 MB file in one go, the server crashes.
+- **How?** The file is sliced into **2.5 MB to 4 MB chunks** in the browser. 
+- **Tracking:** Each chunk is sent with metadata: `transfer_id`, `chunk_index`, and `total_chunks`. The receiver gets a stream, and because each chunk is prefixed with a 4-byte length header, the receiver knows exactly where one chunk ends and the next begins.
+
+### How Files are Deleted (Data Lifecycle)
+- **Burn-on-Read:** A strict security feature. The server uses an atomic database lock to ensure a file can only be downloaded exactly once. The moment the download completes, the server actively triggers `os.remove(file_path)` and drops the database row.
+- **Scheduled Expiry:** If a file is not downloaded, it eventually expires (e.g., after 24 hours). The server runs a background Cron Job (`/api/v1/system/cleanup`) that sweeps the database and physically deletes any file whose `expires_at` timestamp has passed.
+
+---
+
+## 6. Data Structures Used
+
+1. **Blob / File Object:** Used in the frontend to represent the raw file selected by the user. It allows reading the file without loading the entire 1 GB into RAM.
+2. **ArrayBuffer / Uint8Array:** Used during encryption. Cryptographic operations require raw byte arrays, not text strings.
+3. **FormData:** Used to construct the HTTP multipart requests for uploading chunks alongside metadata.
+4. **Dictionary / JSON (Object):** Used for API communication.
+5. **Relational Database Tables (SQLite):** Used on the backend. A `files` table stores rows containing metadata like `id`, `filename`, `expires_at`, `iv`, `salt`, and `download_count`.
+
+---
+
+## 7. File Representation
+
+Regardless of whether the file is a PDF, JPG, MP4, or ZIP, computers see them as **Binary Data** (a sequence of 0s and 1s). 
+
+- **FileShare DOES NOT use Base64.** Base64 converts binary to text, which increases the file size by 33%. 
+- Instead, FileShare reads the file as an **ArrayBuffer** (raw bytes), encrypts those bytes, and sends them directly via HTTP `multipart/form-data` as a binary Blob (`application/octet-stream`).
+
+---
+
+## 8. Encryption and Security
+
+### End-to-End Encryption (E2E)
+FileShare uses true E2E encryption. 
+
+- **What is encrypted?** The file contents.
+- **Where?** Inside the Sender's browser (Client-side).
+- **Encryption Algorithm:** **AES-256-GCM** (Advanced Encryption Standard with Galois/Counter Mode). This provides both confidentiality and data integrity (authentication tag).
+
+### Key Exchange (How the receiver gets the key safely)
+1. The sender's browser generates a random 256-bit AES key.
+2. The browser generates a random 6-digit PIN.
+3. The PIN is mathematically hashed using **PBKDF2 (Password-Based Key Derivation Function 2)** to create a "Wrapping Key".
+4. The random AES key is encrypted *using* the Wrapping Key. This is called a "Wrapped Key".
+5. The Wrapped Key is sent to the server. **The server never sees the PIN or the raw AES key.**
+6. The receiver types the PIN. Their browser derives the Wrapping Key, decrypts the Wrapped Key, gets the real AES key, and decrypts the file.
+
+*Encryption in Transit* is handled by HTTPS (TLS). *Encryption at Rest* is handled by AES-256 on the disk.
+
+---
+
+## 9. Storage
+
+- **Where?** Files are stored on the server's local file system (in Vercel, this is the ephemeral `/tmp` directory).
+- **Metadata:** Stored in a local SQLite database (`app.db`).
+- **Lifecycle:** Files are actively deleted via Burn-on-Read or swept by the automated Cron Job as described in the Data Flow section.
+
+---
+
+## 10. Backend Architecture
+
+- **Framework:** Python Flask.
+- **API Design:** RESTful structure.
+  - `POST /api/v1/files` (Upload small file)
+  - `POST /api/v1/transfers` (Initialize large file upload)
+  - `PUT /api/v1/transfers/{id}/chunks/{index}` (Upload a piece)
+  - `GET /api/v1/files/{id}` (Get metadata)
+  - `GET /api/v1/files/{id}/content` (Download file)
+
+---
+
+## 11. Frontend Architecture
+
+- **UI Framework:** React with Vite.
+- **State Management:** React Context API / State Machine (managing states like `IDLE`, `ENCRYPTING`, `UPLOADING`, `READY`).
+- **APIs Used:**
+  - `Web Crypto API` (for AES encryption).
+  - `File API` (for reading file slices without crashing RAM).
+  - `XMLHttpRequest (XHR)` (used instead of `fetch` for uploads because XHR provides real-time `onprogress` upload tracking for the progress bar).
+
+---
+
+## 12. Complete Transmission Example
+
+**Scenario: User A sends a 10 MB PDF to User B.**
+
+1. **Selection:** User A selects `report.pdf`.
+2. **Key Generation:** Browser A generates a 256-bit AES key and a 6-digit PIN (e.g., 123456).
+3. **Chunking & Encryption:** The browser reads the first 4 MB, compresses it, encrypts it with AES, and repeats for the rest of the file.
+4. **Transport (OSI Layer 4):** Browser A opens a TCP connection to the Vercel server.
+5. **Upload (OSI Layer 7):** Browser A sends HTTP PUT requests containing the encrypted chunks.
+6. **Storage:** The Vercel Server saves the encrypted bytes to `/tmp`.
+7. **Sharing:** User A sends the PIN "123456" to User B.
+8. **Request:** User B enters "123456". Browser B requests the file from the server via HTTP GET.
+9. **Download:** The server streams the encrypted bytes back via TCP/IP.
+10. **Decryption:** Browser B uses the PIN to unwrap the AES key and decrypts the bytes in memory.
+11. **Reconstruction:** Browser B combines the decrypted bytes into a Blob and triggers a standard browser download for `report.pdf`.
+12. **Cleanup:** The server deletes the file from `/tmp` based on expiration rules.
+
+---
+
+## 13. Viva Questions (30 Q&A)
+
+1. **What is FileShare?** A secure, end-to-end encrypted file sharing web application.
+2. **Which protocol does FileShare use for data transfer?** HTTP/HTTPS over TCP.
+3. **Why use TCP instead of UDP for file uploads?** TCP guarantees that all file chunks arrive in the exact order without data loss. UDP does not guarantee delivery.
+4. **What is HTTPS?** Hypertext Transfer Protocol Secure; it encrypts the communication channel between the browser and the server using TLS.
+5. **What is TLS?** Transport Layer Security, the cryptographic protocol that provides HTTPS encryption.
+6. **What is WebRTC?** Web Real-Time Communication, an API that allows browsers to communicate directly peer-to-peer.
+7. **What is STUN?** Session Traversal Utilities for NAT; a server that tells a computer what its public IP address is.
+8. **What is TURN?** Traversal Using Relays around NAT; a fallback server that relays data if a direct peer-to-peer WebRTC connection fails.
+9. **What is ICE?** Interactive Connectivity Establishment; the framework WebRTC uses to find the best path.
+10. **What is a packet?** The basic unit of data routed over an IP network (Network Layer).
+11. **What is a segment?** The basic unit of data at the Transport Layer (TCP).
+12. **What is a frame?** The basic unit of data at the Data Link Layer.
+13. **What is chunking?** Breaking a large file into smaller pieces (e.g., 4MB) to send them individually.
+14. **Why is chunking required?** To prevent high RAM usage in the browser and to bypass server request size limits.
+15. **How is a file reconstructed?** The frontend collects all downloaded chunks into an array and combines them into a single `Blob` object.
+16. **What data structure stores file metadata on the server?** A relational database table (SQLite).
+17. **Where is the file stored?** Temporarily on the server's local file system (or `/tmp` in serverless).
+18. **Is the file encrypted?** Yes, end-to-end using AES-256-GCM in the browser.
+19. **What happens if transmission fails mid-upload?** The frontend can retry the specific failed chunk, or the transfer fails and the server's cron job cleans up the orphaned chunks later.
+20. **What happens if the receiver disconnects?** The TCP connection drops. They must request the download again.
+21. **How is file integrity verified?** AES-GCM includes an authentication tag that guarantees the data has not been tampered with.
+22. **What is the difference between HTTP and WebSocket?** HTTP is request-response and stateless. WebSocket is a persistent, full-duplex connection for real-time data.
+23. **Which OSI layers are involved in the upload?** All 7 layers. From the Application (HTTP) down to the Physical.
+24. **How does DNS help?** It translates the human-readable domain into the server's IP address.
+25. **What happens when the user clicks Download?** The browser creates an invisible `<a>` tag with a URL pointing to the decrypted Blob in memory and simulates a click to save it.
+26. **What is an ArrayBuffer?** A JavaScript object representing a generic, fixed-length raw binary data buffer.
+27. **Why not use Base64 for file transfer?** Base64 encoding increases file size by about 33% and wastes CPU cycles. Binary transfer is faster and smaller.
+28. **What is PBKDF2?** Password-Based Key Derivation Function 2. It hashes the PIN heavily so it cannot be easily brute-forced.
+29. **What is Burn-on-Read?** A security feature where the server deletes the file immediately after the first successful download.
+30. **Does the server know my PIN?** No. The PIN is used locally to wrap the key. The server only stores the wrapped key, meaning the server cannot decrypt the file.
