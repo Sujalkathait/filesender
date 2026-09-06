@@ -1,78 +1,252 @@
-# 🚀 FileShare
+<div align="center">
 
-FileShare is a secure, high-performance web app. It lets you send files to anyone instantly over the internet using a simple 6-digit PIN or by scanning a QR code.
+# 🔒 FileShare
+
+### High-Performance, Zero-Knowledge Encrypted File Transfer with Stream & Batch Processing
+
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.0.2-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+
+### Visit our Website
 
 ![Website QR Code](website_qr.png)
+[![Web Crypto](https://img.shields.io/badge/Web_Crypto_API-AES--256--GCM-4CAF50?style=for-the-badge)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
+[![WebRTC](https://img.shields.io/badge/WebRTC-P2P_Direct-FF5722?style=for-the-badge&logo=webrtc&logoColor=white)](https://webrtc.org/)
+[![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)
+
+Live Application: https://filesender-coral.vercel.app/  
+GitHub Repository: https://github.com/sujalkathait93-lab/filesender
 
 ---
 
-## 🌟 Key Features
+</div>
 
-### 🔒 End-to-End Encryption
-Your files are locked mathematically inside your browser before sending. Only the receiver's PIN can unlock them. The server never sees your actual files or passwords.
+## 📌 Overview
 
-### 📦 Chunking for Large Files
-Instead of sending a massive 1GB file at once, the browser slices it into tiny 4MB pieces. This prevents memory crashes and makes uploads incredibly fast.
+**FileShare** is a high-performance, privacy-first web application designed for secure, zero-knowledge file sharing. Built with a stream-and-batch processing pipeline, it allows users to transfer up to 20 files per transfer (up to 1 GB total) safely without loading entire files into memory.
 
-### 🗂️ Multi-File Batching
-When you send 50 photos, FileShare groups them into one single virtual bundle. This saves time, reduces network traffic, and speeds up the entire transfer process significantly.
+Files are encrypted directly in the user's browser using hardware-accelerated **AES-256-GCM** before transmission. The backend server functions strictly as an ephemeral metadata coordinator and optional fallback relay—**decryption keys and plaintext files never touch the server disk or memory**.
 
-### 📱 QR-Based Transfer
-Receivers don't need to type long links. They just scan the QR code on the sender's screen using their phone camera, and the download starts securely and instantly.
-
-### 🔥 Burn-on-Read
-For ultimate privacy, the server deletes your file permanently the exact second the receiver finishes downloading it. No traces, no logs, and no backups are left behind.
-
-### 🎨 Beautiful UI/UX
-The design is sleek and modern. It uses glowing cards, live progress bars, animated countdown timers, and instant copy buttons to make sharing files effortless and visually stunning.
+The system is engineered with strict privacy principles:
+- **System Capacity:** Limited to **20 concurrent users** across the system.
+- **Batch Transfer Limit:** Up to **20 files per transfer** (up to 1 GB total size).
+- **Ephemeral TTL:** Live countdown expiry options strictly from **15 seconds up to 3 minutes (180s)**.
+- **Privacy-Preserving:** **Burn After Read is always enabled — every file self-destructs immediately after download. No data is ever stored on sender or receiver side.**
 
 ---
 
-## 🏗️ Architecture & Workflows
+## ✨ Key Capabilities & Features
 
-### Upload Workflow
-1. You select a file. 
-2. Browser encrypts it locally. 
-3. File is sliced into chunks and sent to the server. 
-4. You get a PIN and QR code to share.
+### 1. ⏱️ Ephemeral Expiry Countdown (15s up to 3 Minutes)
+- **Strict Ephemeral Window:** Configurable live countdown options (**15s, 30s, 45s, 60s / 1 min, 2 min / 120s, up to 3 min / 180s**).
+- **Sub-Second Auto-Purge:** The moment the countdown timer expires, backend background cleanup sweeps immediately unlink the ciphertext file and purge SQLite metadata.
+- **Visual Countdown:** Live countdown timers with animated progress track and auto-destruction notice.
 
-### Download Workflow
-1. Receiver enters the PIN. 
-2. Server streams the encrypted chunks back. 
-3. Receiver's browser decrypts and rebuilds the file. 
-4. The file is saved directly to their device.
+### 2. 🔢 6-Digit OTP Transfer Codes (`839201`)
+- **Seamless OTP Code Format:** 6-number digit OTP format for effortless sending, typing, and memorizing like an SMS OTP (e.g., `839201`).
+- **Flexible Code Parsing:** Seamlessly accepts 6-digit OTP codes (`839201`, `839 201`, `839-201`), legacy 10-digit codes, 16-hex strings, or direct URL hash links (`#key=...`).
+- **One-Click Share:** Copy code, copy formatted instructions, or share directly via WhatsApp.
 
-### Architecture Flowchart
+### 3. 📊 Clean Sender Dashboard (Streamlined 4-Card Layout)
+The sender screen features an organized, responsive 4-card telemetry layout:
+1. **File Details Box:** File thumbnail / icon, filename, total size, single/bundle file count, and in-browser preview button.
+2. **Transfer Code Box:** Prominent 6-digit OTP code with one-click copy, WhatsApp share, and share text copy.
+3. **Expiry Countdown Box:** Real-time countdown timer in seconds with animated progress track.
+4. **Security & Privacy Box:** Zero-Knowledge AES-256-GCM verification seal, client-side only keys, and Burn-on-Read / auto-purge status.
+
+### 4. 🗂️ Sender Transfer Hub & Instant Cancellation
+- **Active Share Monitoring:** Track active transfers simultaneously with live countdown timers and status pills.
+- **Instant Revocation:** Senders can cancel and purge files immediately via `DELETE /api/cancel/<id>` with secret `X-Owner-Token` authentication.
+
+### 5. 📥 Receiver Experience & In-Browser Preview
+- **Pre-Download Inspection:** Inspect photos, audio, video, PDFs, code, and text directly in-browser before saving to disk.
+- **Clean Verification Telemetry:** Displays transfer size, AES-256-GCM encryption, live countdown timer, and verified E2E security badge without exposing download statistics.
+- **Burn-on-Read Self-Destruction:** Every file automatically self-destructs from the server immediately after download completion. No data is ever stored.
+
+### 6. 🌐 Multiple Transfer Modes
+- **Cloud Encrypted Relay:** AES-256-GCM ciphertext stored temporarily until download or expiry countdown completes.
+- **WebRTC Direct P2P:** Direct browser-to-browser streaming via DataChannels with **zero intermediary server storage**.
+- **Steganography Image Vault:** Inconspicuously conceals encrypted bytes inside standard PNG pixel arrays (<10 MB).
+
+### 7. 🧹 Zero Tracking & Privacy
+- **No Tracking Cookies:** Zero persistent tracking cookies or user accounts required.
+- **Session Data Purge:** All session tokens, cookie records, blob memory URLs, and transfer histories are automatically cleared when the browser tab is closed.
+
+---
+
+## 🏛️ System Architecture
+
 ```mermaid
-graph LR
-    A[Sender] -->|Encrypts & Uploads| B(Vercel Server)
-    B -->|Provides QR/PIN| A
-    C[Receiver] -->|Scans QR| B
-    B -->|Streams Data| C
-    C -->|Decrypts| D[File Saved]
+graph TD
+    subgraph SENDER ["Sender Client (Browser)"]
+        S1[Up to 20 Files] -->|Pack into Bundle| S2[256 KB Chunks]
+        S2 -->|Smart Optimizer| S3[Multi-Part Pipeline]
+        S3 -->|AES-256-GCM Client Crypto| S4[Encrypted Payload]
+        S4 -->|Direct P2P DataChannel| W1[WebRTC Channel]
+        S4 -->|Encrypted Stream Upload| B1[Flask Backend]
+    end
+
+    subgraph BACKEND ["Backend (Signaling & Ephemeral Coordinator)"]
+        B1 -->|Capacity Check: <= 20 Users| B2[SQLite WAL Database]
+        B1 --> B3[Ephemeral Storage /uploads]
+        B4[Background Cleanup Worker] -->|Sweeps Expiry <= 180s| B2
+        B4 -->|Unlinks Expired Files| B3
+    end
+
+    subgraph RECEIVER ["Receiver Client (Browser)"]
+        W1 --> R1[Decryption Engine]
+        B1 -->|Stream Download| R1
+        R1 -->|AES-256-GCM Decrypt| R2[File Stream]
+        R2 -->|File System Access API| R3[Direct-to-Disk Save]
+        R2 -->|In-Memory Buffer| R4[In-Browser File Preview]
+    end
 ```
 
 ---
 
-## ⚠️ Limitations & Edge Cases
+## 🔄 Transfer Flow Sequence
 
-- **Size Limits:** You can send up to 1 GB or 20 files at a time.
-- **Network Drops:** If the internet disconnects mid-transfer, the system halts safely without corrupting data.
-- **Expiration:** If nobody downloads the file, a background robot permanently deletes it after a set time.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Sender as Sender Browser
+    participant Backend as Flask API & SQLite WAL
+    actor Receiver as Receiver Browser
+
+    Note over Sender: Encrypts file locally (AES-256-GCM, 6-Digit OTP Code)
+    Sender->>Backend: POST /api/upload (Encrypted ciphertext, expiry_seconds <= 180, file_count <= 20)
+    Backend-->>Sender: 200 OK (file_id, owner_token, expires_at)
+
+    Note over Sender,Receiver: Sender shares 6-digit OTP code or QR code
+    Receiver->>Backend: GET /api/file-info/<id> (X-Access-Proof)
+    Backend-->>Receiver: Metadata (size, mime_type, expires_at)
+
+    alt In-Browser Preview Mode
+        Receiver->>Backend: GET /api/download/<id>?preview=1
+        Backend-->>Receiver: Stream Encrypted Bytes (Preview does not burn file)
+        Note over Receiver: Decrypts & renders in-browser preview modal
+    else Full Download Mode
+        Receiver->>Backend: GET /api/download/<id>
+        Backend-->>Receiver: Stream Encrypted Bytes
+        Note over Receiver: Decrypts & streams directly to disk via File System API
+        opt Burn-on-Read Active
+            Backend->>Backend: Unlinks ciphertext blob & marks transfer burned
+        end
+    end
+```
 
 ---
 
-## 💻 Tech Stack (MVP)
+## 🚀 MVP Status & Deployment
 
-- **Frontend:** React (v18), Vite (v5), WebCrypto API, WebRTC.
-- **Backend:** Python (v3.12), Flask (v3), SQLite3 (WAL mode).
-- **Deployment:** Vercel Serverless Functions with ephemeral `/tmp` storage.
+This project represents the Minimum Viable Product (MVP) of FileShare. It is fully functional, secure, and actively deployed.
+
+- **Frontend Hosting:** Deployed on **Vercel** (`https://filesender-coral.vercel.app/`).
+- **Backend Environment:** Runs on **Vercel Serverless Functions** via `vercel.json` rewrites routing to `api/index.py`.
+- **Ephemeral Storage:** File blobs are temporarily persisted to the `/tmp` directory available in serverless environments, ensuring compliance with strict memory caps.
+- **Database:** Uses a localized **SQLite3** database (`/tmp/app.db`) initialized dynamically at runtime to handle fast metadata lookups and Burn-on-Read transactions across serverless invocations.
 
 ---
 
-## 🔌 API Reference (v1)
+## 🛠️ Tech Stack Breakdown
 
-- `POST /api/v1/transfers` - Start a large chunked transfer.
-- `PUT /api/v1/transfers/<id>/chunks/<idx>` - Upload a 4MB slice.
-- `GET /api/v1/files/<id>/content` - Download the encrypted file stream.
-- `DELETE /api/v1/files/<id>` - Delete the file instantly.
+### Frontend MVP
+| Technology | Role |
+| :--- | :--- |
+| **React (v18.2.0)** | Modular UI components, state machines, and reactive telemetry cards. |
+| **Vite (v5.0.8)** | High-speed build tooling and optimized bundle compilation. |
+| **Web Crypto API** | Hardware-accelerated client-side AES-256-GCM encryption & PBKDF2 key derivation. |
+| **WebRTC & Socket.IO (v4.7.4)** | Peer-to-peer data channels for direct device-to-device transfers. |
+| **QRCode.react (v3.1.0)** | SVG-rendered dynamic QR codes for mobile-to-PC sharing. |
+
+### Backend MVP
+| Technology | Role |
+| :--- | :--- |
+| **Python (v3.12+)** | Core backend language. |
+| **Flask (v3.0.2)** | Lightweight REST API framework and chunk streaming router. |
+| **SQLite (v3.x / WAL Mode)** | High-concurrency relational metadata storage (Serverless compatible via `/tmp/app.db`). |
+| **Vercel Serverless** | Execution environment for Python APIs and Background Cron Sweeps (`/api/v1/system/cleanup`). |
+| **Pytest** | Integration testing suite to validate capacity, TTL sweeps, and crypto roundtrips. |
+
+---
+
+## 🔌 REST API Reference (v1)
+
+| Method | Endpoint | Required Headers / Params | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/system/health` | None | Reports server health, storage engine, and cleanup daemon status. |
+| `GET` | `/api/v1/system/network-info` | None | Retrieves STUN configuration for WebRTC NAT traversal. |
+| `POST` | `/api/v1/files` | Multipart Form (`file`, `expiry_seconds`, `file_count`) | Uploads encrypted payload with metadata (enforces limits). |
+| `POST` | `/api/v1/transfers` | JSON (`file_count`, `expiry_seconds`, `total_chunks`) | Initializes a multi-part large file chunked transfer. |
+| `PUT` | `/api/v1/transfers/<id>/chunks/<index>` | Multipart Form (`chunk_data`) | Uploads an individual chunk slice. |
+| `POST` | `/api/v1/transfers/<id>/complete` | JSON (`checksum`) | Finalizes and stitches chunked transfer. |
+| `GET` | `/api/v1/files/<id>` | `X-Access-Proof` | Retrieves file metadata and expiry without downloading payload. |
+| `GET` | `/api/v1/files/<id>/content` | `X-Access-Proof`, optional `?preview=1` | Streams encrypted binary blob. |
+| `DELETE` | `/api/v1/files/<id>` | `X-Owner-Token` | Senders permanently delete files and purge metadata on demand. |
+
+---
+
+## 💻 Local Development Setup
+
+### Prerequisites
+- **Python 3.12+**
+- **Node.js 18+** and **npm**
+
+### 1. Backend Setup
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start backend API (Port 8000)
+python api/index.py
+```
+
+### 2. Frontend Setup
+```bash
+# Navigate to frontend folder
+cd frontend
+
+# Install packages
+npm install
+
+# Start Vite development server (Port 5173)
+npm run dev
+```
+
+Visit application in browser at: `http://localhost:5173`
+
+---
+
+## 🧪 Verification and Testing
+
+Execute the automated test suites to validate encryption, API endpoints, state machines, and countdown TTL sweeps:
+
+```bash
+# Run 59 Backend Integration Tests
+python tests/test_backend.py
+pytest -s
+
+# Run Frontend Cryptographic & State Machine Tests (61 tests)
+node tests/preview-and-states.test.mjs
+
+# Run Smart Transfer Optimizer & Chunk Plan Tests (75 tests)
+node tests/smart-optimizer.test.mjs
+
+# Run End-to-End Cryptographic Roundtrip Test (10 tests)
+node tests/crypto-roundtrip.mjs
+
+# Build production bundle
+cd frontend && npm run build
+```
+
+---
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
