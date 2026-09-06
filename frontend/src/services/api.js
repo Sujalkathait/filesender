@@ -43,11 +43,11 @@ async function postJson(path, data = {}) {
 /**
  * Upload a FormData body with real upload progress via XMLHttpRequest.
  */
-function uploadFormData(path, formData, onProgress) {
+function uploadFormData(path, formData, onProgress, method = 'POST') {
   return new Promise((resolve, reject) => {
     const doUpload = (urlPath, isRetry = false) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_URL}${urlPath}`);
+      xhr.open(method, `${API_URL}${urlPath}`);
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
@@ -95,7 +95,7 @@ async function uploadFileSmart(fileBlob, metadata, onProgress) {
         formData.append(k, String(v));
       }
     }
-    return uploadFormData('/api/upload', formData, onProgress);
+    return uploadFormData('/api/v1/files', formData, onProgress);
   }
 
   // Multi-chunk upload pipeline for large files
@@ -103,7 +103,7 @@ async function uploadFileSmart(fileBlob, metadata, onProgress) {
   const totalChunks = Math.ceil(totalSize / CHUNK_UPLOAD_SIZE);
 
   // 1. Initialize session
-  const initRes = await postJson('/api/upload/init', {
+  const initRes = await postJson('/api/v1/transfers', {
     ...metadata,
     total_chunks: totalChunks,
     original_size: metadata.original_size || totalSize
@@ -120,13 +120,12 @@ async function uploadFileSmart(fileBlob, metadata, onProgress) {
 
     const chunkForm = new FormData();
     chunkForm.append('chunk', chunkBlob, `chunk_${idx}.bin`);
-    chunkForm.append('transfer_id', transfer_id);
+    // transfer_id is in URL path, but some legacy checks might still rely on file_id and total_chunks in form
     chunkForm.append('file_id', file_id);
-    chunkForm.append('chunk_index', String(idx));
     chunkForm.append('total_chunks', String(totalChunks));
 
     let chunkUploaded = 0;
-    await uploadFormData('/api/upload/chunk', chunkForm, (p) => {
+    await uploadFormData(`/api/v1/transfers/${encodeURIComponent(transfer_id)}/chunks/${idx}`, chunkForm, (p) => {
       chunkUploaded = p.loaded;
       if (onProgress) {
         const currentTotalLoaded = uploadedBytes + chunkUploaded;
@@ -136,14 +135,13 @@ async function uploadFileSmart(fileBlob, metadata, onProgress) {
           percent: Math.min(99, Math.round((currentTotalLoaded / totalSize) * 100))
         });
       }
-    });
+    }, 'PUT');
 
     uploadedBytes += (end - start);
   }
 
   // 3. Complete and assemble
-  const completeRes = await postJson('/api/upload/complete', {
-    transfer_id,
+  const completeRes = await postJson(`/api/v1/transfers/${encodeURIComponent(transfer_id)}/complete`, {
     file_id,
     total_chunks: totalChunks,
     owner_token
@@ -164,7 +162,7 @@ async function downloadBlob(fileId, { preview = false, onProgress, proof } = {})
   const headers = { Accept: 'application/octet-stream' };
   if (proof) headers['X-Access-Proof'] = proof;
   const response = await fetch(
-    `${API_URL}/api/download/${fileId}${qs ? `?${qs}` : ''}`,
+    `${API_URL}/api/v1/files/${encodeURIComponent(fileId)}/content${qs ? `?${qs}` : ''}`,
     { headers }
   );
 
@@ -209,12 +207,12 @@ async function downloadBlob(fileId, { preview = false, onProgress, proof } = {})
 }
 
 export const api = {
-  health: () => getJson('/api/health'),
-  networkInfo: () => getJson('/api/network-info'),
-  stats: () => getJson('/api/stats'),
-  fileInfo: (id, proof) => getJson(`/api/files/${encodeURIComponent(id)}`, proof ? { 'X-Access-Proof': proof } : {}),
-  refreshToken: (transferId) => postJson(`/api/transfers/${encodeURIComponent(transferId)}/token/refresh`),
-  deleteFile: (id, ownerToken) => fetch(`${API_URL}/api/files/${encodeURIComponent(id)}`, {
+  health: () => getJson('/api/v1/system/health'),
+  networkInfo: () => getJson('/api/v1/system/network-info'),
+  stats: () => getJson('/api/v1/system/stats'),
+  fileInfo: (id, proof) => getJson(`/api/v1/files/${encodeURIComponent(id)}`, proof ? { 'X-Access-Proof': proof } : {}),
+  refreshToken: (transferId) => postJson(`/api/v1/transfers/${encodeURIComponent(transferId)}/token/refresh`),
+  deleteFile: (id, ownerToken) => fetch(`${API_URL}/api/v1/files/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { 'X-Owner-Token': ownerToken || '', Accept: 'application/json' },
   }).then(async (response) => {
@@ -226,7 +224,7 @@ export const api = {
     }
     return response.json().catch(() => ({ message: 'File deleted' }));
   }),
-  upload: (formData, onProgress) => uploadFormData('/api/upload', formData, onProgress),
+  upload: (formData, onProgress) => uploadFormData('/api/v1/files', formData, onProgress, 'POST'),
   uploadSmart: uploadFileSmart,
   download: downloadBlob,
 };

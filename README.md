@@ -8,6 +8,10 @@
 [![Flask](https://img.shields.io/badge/Flask-3.0.2-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+
+### Visit our Website
+
+![Website QR Code](website_qr.png)
 [![Web Crypto](https://img.shields.io/badge/Web_Crypto_API-AES--256--GCM-4CAF50?style=for-the-badge)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
 [![WebRTC](https://img.shields.io/badge/WebRTC-P2P_Direct-FF5722?style=for-the-badge&logo=webrtc&logoColor=white)](https://webrtc.org/)
 [![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)

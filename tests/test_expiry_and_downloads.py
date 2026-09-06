@@ -50,7 +50,7 @@ class ProofClient:
 def test_metadata_fields_stored_and_returned():
     """Verify createdAt, expiresAt, maxDownloads, downloadCount, downloadsRemaining are correctly returned."""
     client = ProofClient(app.test_client())
-    r = client.post("/api/upload", data={
+    r = client.post("/api/v1/files", data={
         "file": (io.BytesIO(b"metadata-verification-content"), "meta.txt.encrypted"),
         "iv": "aa" * 12,
         "salt": "bb" * 16,
@@ -77,7 +77,7 @@ def test_metadata_fields_stored_and_returned():
     fid = data["file_id"]
 
     # Check file info response
-    info_res = client.get(f"/api/file-info/{fid}")
+    info_res = client.get(f"/api/v1/files/{fid}")
     assert info_res.status_code == 200
     info = info_res.get_json()
     assert info["id"] == fid
@@ -92,7 +92,7 @@ def test_metadata_fields_stored_and_returned():
 def test_download_count_and_limit_enforcement():
     """Verify file is downloadable up to max_downloads, then returns 410 with clear message."""
     client = ProofClient(app.test_client())
-    r = client.post("/api/upload", data={
+    r = client.post("/api/v1/files", data={
         "file": (io.BytesIO(b"quota-test-payload"), "quota.encrypted"),
         "iv": "cc" * 12,
         "salt": "dd" * 16,
@@ -107,37 +107,37 @@ def test_download_count_and_limit_enforcement():
     fid = r.get_json()["file_id"]
 
     # 1st download
-    d1 = client.get(f"/api/download/{fid}")
+    d1 = client.get(f"/api/v1/files/{fid}")
     assert d1.status_code == 200
     assert d1.data == b"quota-test-payload"
 
     # Info after 1st download: 1 used, 2 remaining
-    info1 = client.get(f"/api/file-info/{fid}").get_json()
+    info1 = client.get(f"/api/v1/files/{fid}").get_json()
     assert info1["download_count"] == 1
     assert info1["downloads_remaining"] == 2
 
     # 2nd download
-    d2 = client.get(f"/api/download/{fid}")
+    d2 = client.get(f"/api/v1/files/{fid}")
     assert d2.status_code == 200
     assert d2.data == b"quota-test-payload"
 
-    info2 = client.get(f"/api/file-info/{fid}").get_json()
+    info2 = client.get(f"/api/v1/files/{fid}").get_json()
     assert info2["download_count"] == 2
     assert info2["downloads_remaining"] == 1
 
     # 3rd download (max limit)
-    d3 = client.get(f"/api/download/{fid}")
+    d3 = client.get(f"/api/v1/files/{fid}")
     assert d3.status_code == 200
     assert d3.data == b"quota-test-payload"
 
     # 4th download must be rejected with 410 Gone and specific message
-    d4 = client.get(f"/api/download/{fid}")
+    d4 = client.get(f"/api/v1/files/{fid}")
     assert d4.status_code == 410
     d4_json = d4.get_json()
     assert "download limit has been reached" in d4_json["detail"].lower()
 
     # File info after limit reached must also return 410 Gone with limit message
-    info_after = client.get(f"/api/file-info/{fid}")
+    info_after = client.get(f"/api/v1/files/{fid}")
     assert info_after.status_code == 410
     assert "download limit has been reached" in info_after.get_json()["detail"].lower()
 
@@ -145,7 +145,7 @@ def test_download_count_and_limit_enforcement():
 def test_unlimited_downloads_mode():
     """Verify max_downloads=0 allows unlimited downloads."""
     client = ProofClient(app.test_client())
-    r = client.post("/api/upload", data={
+    r = client.post("/api/v1/files", data={
         "file": (io.BytesIO(b"unlimited-content"), "unlimited.encrypted"),
         "iv": "ee" * 12,
         "salt": "ff" * 16,
@@ -159,11 +159,11 @@ def test_unlimited_downloads_mode():
     fid = r.get_json()["file_id"]
 
     for _ in range(10):
-        res = client.get(f"/api/download/{fid}")
+        res = client.get(f"/api/v1/files/{fid}")
         assert res.status_code == 200
         assert res.data == b"unlimited-content"
 
-    info = client.get(f"/api/file-info/{fid}").get_json()
+    info = client.get(f"/api/v1/files/{fid}").get_json()
     assert info["download_count"] == 10
     assert info["max_downloads"] == 0
     assert info["downloads_remaining"] is None
@@ -190,11 +190,11 @@ def test_expiry_time_rejection():
     conn.commit()
     conn.close()
 
-    info_res = client.get(f"/api/file-info/{fid}")
+    info_res = client.get(f"/api/v1/files/{fid}")
     assert info_res.status_code == 410
     assert "sharing time limit has expired" in info_res.get_json()["detail"].lower()
 
-    down_res = client.get(f"/api/download/{fid}")
+    down_res = client.get(f"/api/v1/files/{fid}")
     assert down_res.status_code == 410
     assert "sharing time limit has expired" in down_res.get_json()["detail"].lower()
 
@@ -203,7 +203,7 @@ def test_expiry_time_rejection():
 def test_burn_on_read_lifecycle():
     """Verify Burn-on-Read allows exactly 1 download and then returns 410 with self-destruct notice."""
     client = ProofClient(app.test_client())
-    r = client.post("/api/upload", data={
+    r = client.post("/api/v1/files", data={
         "file": (io.BytesIO(b"top-secret-burn"), "burn.encrypted"),
         "iv": "12" * 12,
         "salt": "34" * 16,
@@ -217,21 +217,21 @@ def test_burn_on_read_lifecycle():
     fid = r.get_json()["file_id"]
 
     # Preview does not burn
-    prev = client.get(f"/api/download/{fid}?preview=true")
+    prev = client.get(f"/api/v1/files/{fid}?preview=true")
     assert prev.status_code == 200
     assert prev.data == b"top-secret-burn"
 
     # Actual download succeeds
-    d1 = client.get(f"/api/download/{fid}")
+    d1 = client.get(f"/api/v1/files/{fid}")
     assert d1.status_code == 200
     assert d1.data == b"top-secret-burn"
 
     # Second download returns 410 Gone with burn/self-destruct message
-    d2 = client.get(f"/api/download/{fid}")
+    d2 = client.get(f"/api/v1/files/{fid}")
     assert d2.status_code == 410
     assert "burn after read" in d2.get_json()["detail"].lower() or "self-destruct" in d2.get_json()["detail"].lower()
 
     # File info returns 410 Gone with burn message
-    info = client.get(f"/api/file-info/{fid}")
+    info = client.get(f"/api/v1/files/{fid}")
     assert info.status_code == 410
     assert "burn after read" in info.get_json()["detail"].lower() or "self-destruct" in info.get_json()["detail"].lower()

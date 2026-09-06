@@ -56,7 +56,7 @@ def root():
     if request.method == "OPTIONS":
         return ("", 204)
     if request.method == "POST":
-        # Handle rewritten upload calls dispatched to root
+        # Keep handling rewritten upload calls dispatched to root for backwards compatibility temporarily
         if "file" in request.files:
             return upload_file()
         return jsonify({"detail": "Root endpoint does not accept POST without file payload"}), 400
@@ -80,8 +80,7 @@ def root():
     })
 
 
-@file_bp.route("/api/health", methods=["GET", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/health", methods=["GET", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/system/health", methods=["GET", "OPTIONS"], strict_slashes=False)
 def health():
     if request.method == "OPTIONS":
         return ("", 204)
@@ -93,8 +92,7 @@ def health():
     })
 
 
-@file_bp.route("/api/network-info", methods=["GET", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/network-info", methods=["GET", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/system/network-info", methods=["GET", "OPTIONS"], strict_slashes=False)
 def network_info():
     """Get network info for LAN/WAN detection and signaling configuration."""
     if request.method == "OPTIONS":
@@ -111,8 +109,7 @@ def network_info():
     return jsonify(payload)
 
 
-@file_bp.route("/api/upload", methods=["POST", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/upload", methods=["POST", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/files", methods=["POST", "OPTIONS"], strict_slashes=False)
 def upload_file():
     """Upload encrypted file blob in a single request."""
     if request.method == "OPTIONS":
@@ -137,8 +134,7 @@ def upload_file():
     return jsonify(result)
 
 
-@file_bp.route("/api/upload/init", methods=["POST", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/upload/init", methods=["POST", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/transfers", methods=["POST", "OPTIONS"], strict_slashes=False)
 def upload_init():
     """Initialize a chunked upload session for large files."""
     if request.method == "OPTIONS":
@@ -155,9 +151,8 @@ def upload_init():
     return jsonify(result)
 
 
-@file_bp.route("/api/upload/chunk", methods=["POST", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/upload/chunk", methods=["POST", "OPTIONS"], strict_slashes=False)
-def upload_chunk():
+@file_bp.route("/api/v1/transfers/<transfer_id>/chunks/<chunk_index>", methods=["PUT", "OPTIONS"], strict_slashes=False)
+def upload_chunk(transfer_id, chunk_index):
     """Upload an individual chunk (< 4 MB) for memory-safe and proxy-safe streaming."""
     if request.method == "OPTIONS":
         return ("", 204)
@@ -168,22 +163,22 @@ def upload_chunk():
         raise ApiError("No chunk file in request", 400)
 
     chunk_file = request.files['chunk']
-    transfer_id = validate_file_id(request.form.get("transfer_id", ""))
+    transfer_id = validate_file_id(transfer_id)
     file_id = validate_file_id(request.form.get("file_id", ""))
+    
     try:
-        chunk_index = int(request.form.get("chunk_index", 0))
+        chunk_idx = int(chunk_index)
         total_chunks = int(request.form.get("total_chunks", 1))
     except (ValueError, TypeError):
         raise ApiError("Invalid chunk index or total chunks", 400)
 
     checksum = (request.form.get("checksum") or "").strip()[:64]
-    result = _transfer_service.save_chunk(transfer_id, file_id, chunk_index, total_chunks, chunk_file, checksum)
+    result = _transfer_service.save_chunk(transfer_id, file_id, chunk_idx, total_chunks, chunk_file, checksum)
     return jsonify(result)
 
 
-@file_bp.route("/api/upload/complete", methods=["POST", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/upload/complete", methods=["POST", "OPTIONS"], strict_slashes=False)
-def upload_complete():
+@file_bp.route("/api/v1/transfers/<transfer_id>/complete", methods=["POST", "OPTIONS"], strict_slashes=False)
+def upload_complete(transfer_id):
     """Assemble and finalize chunked upload."""
     if request.method == "OPTIONS":
         return ("", 204)
@@ -191,7 +186,7 @@ def upload_complete():
     _rate_limiter.check("upload", _client_ip())
 
     data = request.get_json(silent=True) or dict(request.form)
-    transfer_id = validate_file_id(data.get("transfer_id", ""))
+    transfer_id = validate_file_id(transfer_id)
     file_id = validate_file_id(data.get("file_id", ""))
     try:
         total_chunks = int(data.get("total_chunks", 1))
@@ -207,8 +202,7 @@ def upload_complete():
     return jsonify(result)
 
 
-@file_bp.route("/api/transfers/<transfer_id>/token/refresh", methods=["POST", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/transfers/<transfer_id>/token/refresh", methods=["POST", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/transfers/<transfer_id>/token/refresh", methods=["POST", "OPTIONS"], strict_slashes=False)
 def refresh_token(transfer_id):
     """Refresh transfer token / QR code. Enforces max refreshes per session."""
     if request.method == "OPTIONS":
@@ -232,10 +226,7 @@ def refresh_token(transfer_id):
         }), 429
 
 
-@file_bp.route("/api/file-info/<file_id>", methods=["GET", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/file-info/<file_id>", methods=["GET", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/api/files/<file_id>", methods=["GET", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/files/<file_id>", methods=["GET", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/files/<file_id>", methods=["GET", "OPTIONS"], strict_slashes=False)
 def get_file_info(file_id):
     """Get metadata for an encrypted file."""
     if request.method == "OPTIONS":
@@ -247,8 +238,7 @@ def get_file_info(file_id):
     return jsonify(_transfer_service.get_file_info(file_id, proof))
 
 
-@file_bp.route("/api/download/<file_id>", methods=["GET", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/download/<file_id>", methods=["GET", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/files/<file_id>/content", methods=["GET", "OPTIONS"], strict_slashes=False)
 def download_file(file_id):
     """Download encrypted file blob."""
     if request.method == "OPTIONS":
@@ -293,8 +283,7 @@ def download_file(file_id):
     return response
 
 
-@file_bp.route("/api/files/<file_id>", methods=["DELETE", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/files/<file_id>", methods=["DELETE", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/files/<file_id>", methods=["DELETE", "OPTIONS"], strict_slashes=False)
 def delete_file(file_id):
     """Delete a transfer file (requires owner token)."""
     if request.method == "OPTIONS":
@@ -306,8 +295,7 @@ def delete_file(file_id):
     return jsonify({"message": "File deleted successfully"})
 
 
-@file_bp.route("/api/stats", methods=["GET", "OPTIONS"], strict_slashes=False)
-@file_bp.route("/stats", methods=["GET", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/system/stats", methods=["GET", "OPTIONS"], strict_slashes=False)
 def get_stats():
     """Public limits only — no internal data exposed."""
     if request.method == "OPTIONS":
@@ -315,6 +303,7 @@ def get_stats():
     return jsonify(_transfer_service.get_stats())
 
 
+@file_bp.route("/api/v1/system/cleanup", methods=["GET", "POST", "OPTIONS"], strict_slashes=False)
 @file_bp.route("/api/cleanup", methods=["GET", "POST", "OPTIONS"], strict_slashes=False)
 def trigger_cleanup():
     """Trigger background cleanup. Protected by Vercel cron header or SECRET_KEY."""
