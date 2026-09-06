@@ -149,24 +149,35 @@ Regardless of whether the file is a PDF, JPG, MP4, or ZIP, computers see them as
 
 ---
 
-## 8. Encryption and Security
+## 8. Encryption, Security & Steganography
 
-### End-to-End Encryption (E2E)
-FileShare uses true E2E encryption. 
+### End-to-End Encryption (E2E) using Web Crypto API
+FileShare uses true E2E encryption powered entirely by the browser's native **Web Crypto API**. 
 
 - **What is encrypted?** The file contents.
-- **Where?** Inside the Sender's browser (Client-side).
-- **Encryption Algorithm:** **AES-256-GCM** (Advanced Encryption Standard with Galois/Counter Mode). This provides both confidentiality and data integrity (authentication tag).
+- **Where?** Inside the Sender's browser (Client-side) before it reaches the network.
+- **Encryption Algorithm:** **AES-256-GCM** (Advanced Encryption Standard with Galois/Counter Mode). 
+  - **AES-256** ensures the data is strictly confidential (military-grade).
+  - **GCM (Galois/Counter Mode)** provides an authentication tag, which ensures **Data Integrity**. If the server or a hacker tampers with even a single byte of the encrypted file, the decryption will immediately fail in the receiver's browser.
 
-### Key Exchange (How the receiver gets the key safely)
-1. The sender's browser generates a random 256-bit AES key.
+### The "Vault" Key Exchange Mechanism
+The key exchange acts as a secure mathematical vault:
+1. The sender's browser generates a completely random 256-bit AES encryption key.
 2. The browser generates a random 6-digit PIN.
-3. The PIN is mathematically hashed using **PBKDF2 (Password-Based Key Derivation Function 2)** to create a "Wrapping Key".
-4. The random AES key is encrypted *using* the Wrapping Key. This is called a "Wrapped Key".
-5. The Wrapped Key is sent to the server. **The server never sees the PIN or the raw AES key.**
-6. The receiver types the PIN. Their browser derives the Wrapping Key, decrypts the Wrapped Key, gets the real AES key, and decrypts the file.
+3. The PIN is hashed using **PBKDF2 (Password-Based Key Derivation Function 2)** with 600,000 iterations and a random salt. This creates a highly secure "Wrapping Key".
+4. The random AES key is then encrypted (wrapped) *using* the Wrapping Key. This creates the "Wrapped Key" blob.
+5. The Wrapped Key is sent to the server. **The server never sees the PIN or the raw AES encryption key.**
+6. When downloading, the receiver types the PIN. Their browser re-derives the Wrapping Key, decrypts the Wrapped Key to access the real AES key, and finally decrypts the file.
 
 *Encryption in Transit* is handled by HTTPS (TLS). *Encryption at Rest* is handled by AES-256 on the disk.
+
+### Steganography Image Vault
+For extreme privacy and plausible deniability, FileShare features a **Steganography Image Vault**. 
+
+Instead of uploading a standard binary file, the sender can choose to hide their encrypted file (up to ~10 MB) inside a generated image (a PNG picture). 
+- **How it works:** The encrypted bytes are encoded directly into the pixel color channels (Red, Green, Blue) of a Canvas image using the **Least Significant Bit (LSB)** technique. 
+- **The Result:** The server and network only see a normal-looking PNG image (a deep space artwork with a "SECVAULTv1" watermark). They have no idea that there is a highly-encrypted PDF or Zip file hidden inside the pixels. 
+- **Extraction:** The receiver's browser reads the pixels, extracts the LSBs to rebuild the encrypted payload, and then uses the AES key to decrypt the original file.
 
 ---
 
