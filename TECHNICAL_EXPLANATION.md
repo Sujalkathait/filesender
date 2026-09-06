@@ -169,6 +169,38 @@ The key exchange acts as a secure mathematical vault:
 5. The Wrapped Key is sent to the server. **The server never sees the PIN or the raw AES encryption key.**
 6. When downloading, the receiver types the PIN. Their browser re-derives the Wrapping Key, decrypts the Wrapped Key to access the real AES key, and finally decrypts the file.
 
+### Deep Dive: AES-256-GCM Client Cryptography (Explained Simply)
+In your viva, if they ask how the encryption actually works, break down the acronym **AES-256-GCM Client Cryptography** into four simple parts:
+
+#### 1. "Client Cryptography" (The Where)
+Instead of sending your file to the server and asking the server to lock it, **your browser (the client) locks the file before it even touches the internet.**
+- *Scenario:* It is like putting your letter inside a heavy steel safe *inside your house*, and then handing the locked safe to the postman (the server). Even if the postman opens the box, they can't read the letter.
+
+#### 2. "AES" (The Lock)
+**Advanced Encryption Standard** is the mathematical algorithm used to scramble the file. It is the same standard used by banks and the military.
+
+#### 3. "256" (The Key Size)
+This means the key has $2^{256}$ possible combinations. 
+- *Scenario:* If all the computers on Earth worked together to guess the key, the sun would burn out before they found the right one.
+
+#### 4. "GCM" (The Tamper-Evident Seal)
+**Galois/Counter Mode** doesn't just encrypt the file; it attaches a "tag" (a digital signature). 
+- *Scenario:* Imagine wrapping your steel safe in a special wax seal. If a hacker intercepts the safe and tries to inject a virus into the locked file, the wax seal breaks. When the receiver tries to open it, the GCM tag will notice the seal is broken, and the decryption will instantly fail, protecting the receiver.
+
+**Simple Cryptography Flow Diagram:**
+```mermaid
+graph TD
+    A[Sender's File] --> B[Browser Web Crypto API]
+    B -->|Locks file with| C{AES-256-GCM Key}
+    C -->|Produces| D(Encrypted File + GCM Seal)
+    D -->|Postman| E[Vercel Server]
+    E -->|Downloads| F[Receiver's Browser]
+    F --> G{Checks GCM Seal}
+    G -->|Seal Broken?| H[Fail/Reject]
+    G -->|Seal Intact?| I[Decrypt with Key]
+    I --> J[Original File]
+```
+
 *Encryption in Transit* is handled by HTTPS (TLS). *Encryption at Rest* is handled by AES-256 on the disk.
 
 ### Steganography Image Vault
