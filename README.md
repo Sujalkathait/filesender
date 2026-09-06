@@ -139,42 +139,52 @@ sequenceDiagram
 
 ---
 
-## 🛠️ Tech Stack Breakdown
+## 🚀 MVP Status & Deployment
 
-### Frontend
-| Technology | Role |
-| :--- | :--- |
-| **React 18** | Modular UI components, state machines, and reactive telemetry cards. |
-| **Vite 5** | High-speed build tooling and optimized bundle compilation. |
-| **Web Crypto API** | Hardware-accelerated client-side AES-256-GCM encryption & PBKDF2 key derivation. |
-| **WebRTC & Socket.IO** | Peer-to-peer data channels for direct device-to-device transfers. |
-| **File System Access API** | Direct-to-disk streaming writes for high memory efficiency. |
-| **QRCode.react** | SVG-rendered dynamic QR codes. |
-| **Lucide React** | Clean vector iconography. |
+This project represents the Minimum Viable Product (MVP) of FileShare. It is fully functional, secure, and actively deployed.
 
-### Backend
-| Technology | Role |
-| :--- | :--- |
-| **Python 3.12+ / Flask 3.0** | Ephemeral REST API coordinator and chunk streaming router. |
-| **SQLite (WAL Mode)** | High-concurrency relational metadata storage with indexed expiry sweeps. |
-| **Threaded Cleaner** | Background worker enforcing sub-second cleanup of transfers expired within 15s–180s. |
-| **Pytest** | Comprehensive integration testing covering security, capacity, TTL, and rate limits. |
+- **Frontend Hosting:** Deployed on **Vercel** (`https://filesender-coral.vercel.app/`).
+- **Backend Environment:** Runs on **Vercel Serverless Functions** via `vercel.json` rewrites routing to `api/index.py`.
+- **Ephemeral Storage:** File blobs are temporarily persisted to the `/tmp` directory available in serverless environments, ensuring compliance with strict memory caps.
+- **Database:** Uses a localized **SQLite3** database (`/tmp/app.db`) initialized dynamically at runtime to handle fast metadata lookups and Burn-on-Read transactions across serverless invocations.
 
 ---
 
-## 🔌 REST API Reference
+## 🛠️ Tech Stack Breakdown
+
+### Frontend MVP
+| Technology | Role |
+| :--- | :--- |
+| **React (v18.2.0)** | Modular UI components, state machines, and reactive telemetry cards. |
+| **Vite (v5.0.8)** | High-speed build tooling and optimized bundle compilation. |
+| **Web Crypto API** | Hardware-accelerated client-side AES-256-GCM encryption & PBKDF2 key derivation. |
+| **WebRTC & Socket.IO (v4.7.4)** | Peer-to-peer data channels for direct device-to-device transfers. |
+| **QRCode.react (v3.1.0)** | SVG-rendered dynamic QR codes for mobile-to-PC sharing. |
+
+### Backend MVP
+| Technology | Role |
+| :--- | :--- |
+| **Python (v3.12+)** | Core backend language. |
+| **Flask (v3.0.2)** | Lightweight REST API framework and chunk streaming router. |
+| **SQLite (v3.x / WAL Mode)** | High-concurrency relational metadata storage (Serverless compatible via `/tmp/app.db`). |
+| **Vercel Serverless** | Execution environment for Python APIs and Background Cron Sweeps (`/api/v1/system/cleanup`). |
+| **Pytest** | Integration testing suite to validate capacity, TTL sweeps, and crypto roundtrips. |
+
+---
+
+## 🔌 REST API Reference (v1)
 
 | Method | Endpoint | Required Headers / Params | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/health` | None | Reports server health, storage engine, and cleanup daemon status. |
-| `GET` | `/api/network-info` | None | Retrieves STUN configuration for WebRTC NAT traversal. |
-| `POST` | `/api/upload` | Multipart Form (`file`, `expiry_seconds`, `file_count`, etc.) | Uploads encrypted payload with metadata (enforces 20-user & 20-file limits). |
-| `POST` | `/api/upload-chunk` | Multipart Form (`file_id`, `chunk_index`, `chunk_data`) | Uploads individual chunk slice for multi-part transfers. |
-| `POST` | `/api/finalize-chunked` | JSON (`file_id`, `total_chunks`, `checksum`) | Finalizes and stitches chunked transfer. |
-| `GET` | `/api/file-info/<id>` | `X-Access-Proof` | Retrieves file metadata and expiry without downloading payload. |
-| `GET` | `/api/download/<id>` | `X-Access-Proof`, optional `?preview=1` | Streams encrypted binary blob. |
-| `POST` | `/api/transfers/<id>/token/refresh` | `X-Owner-Token` | Rotates QR access token (up to 5 refreshes). |
-| `DELETE` | `/api/cancel/<id>` | `X-Owner-Token` | Senders permanently delete files and purge metadata on demand. |
+| `GET` | `/api/v1/system/health` | None | Reports server health, storage engine, and cleanup daemon status. |
+| `GET` | `/api/v1/system/network-info` | None | Retrieves STUN configuration for WebRTC NAT traversal. |
+| `POST` | `/api/v1/files` | Multipart Form (`file`, `expiry_seconds`, `file_count`) | Uploads encrypted payload with metadata (enforces limits). |
+| `POST` | `/api/v1/transfers` | JSON (`file_count`, `expiry_seconds`, `total_chunks`) | Initializes a multi-part large file chunked transfer. |
+| `PUT` | `/api/v1/transfers/<id>/chunks/<index>` | Multipart Form (`chunk_data`) | Uploads an individual chunk slice. |
+| `POST` | `/api/v1/transfers/<id>/complete` | JSON (`checksum`) | Finalizes and stitches chunked transfer. |
+| `GET` | `/api/v1/files/<id>` | `X-Access-Proof` | Retrieves file metadata and expiry without downloading payload. |
+| `GET` | `/api/v1/files/<id>/content` | `X-Access-Proof`, optional `?preview=1` | Streams encrypted binary blob. |
+| `DELETE` | `/api/v1/files/<id>` | `X-Owner-Token` | Senders permanently delete files and purge metadata on demand. |
 
 ---
 
