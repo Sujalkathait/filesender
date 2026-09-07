@@ -6,6 +6,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { decryptFile, extractKeyFromUrl, parseTransferCode, isChunkedMarker, isValidTransferCodeInput, computeAccessProof, deriveFileId } from '../crypto';
 import { unpackFiles } from '../fileManager';
+import { zip } from 'fflate';
 import { extractPayloadFromImage } from '../steganography';
 import { api } from '../services/api';
 import { createProgressThrottle } from '../services/progress';
@@ -159,14 +160,44 @@ export function useDownload(stateMachine) {
     }, 1000);
   }, []);
 
+  const downloadAsZip = useCallback((filesToZip) => {
+    if (!filesToZip || filesToZip.length === 0) return;
+    
+    const zipObj = {};
+    filesToZip.forEach(file => {
+      // Use the Uint8Array data directly for fflate
+      zipObj[file.name] = file.data || new Uint8Array(0);
+    });
+
+    // level: 0 ensures we just store the files without re-compressing them,
+    // making the zip generation lightning fast on mobile devices.
+    zip(zipObj, { level: 0 }, (err, zippedData) => {
+      if (err) {
+        console.error("Failed to generate ZIP", err);
+        return;
+      }
+      const blob = new Blob([zippedData], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `FileShare_Bundle_${filesToZip.length}_files.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => {
+        try { window.URL.revokeObjectURL(url); } catch (_) {}
+      }, 1000);
+    });
+  }, []);
+
   const downloadAllFiles = useCallback(() => {
     if (!decryptedFiles || decryptedFiles.length === 0) return;
-    decryptedFiles.forEach((file, index) => {
-      setTimeout(() => {
-        downloadSingleFile(file);
-      }, index * 200);
-    });
-  }, [decryptedFiles, downloadSingleFile]);
+    if (decryptedFiles.length === 1) {
+      downloadSingleFile(decryptedFiles[0]);
+    } else {
+      downloadAsZip(decryptedFiles);
+    }
+  }, [decryptedFiles, downloadSingleFile, downloadAsZip]);
 
   const executeDownload = useCallback(async (triggerBrowserSave = true, onPreviewDataReady = null) => {
     if (!fileInfo) return;
@@ -237,12 +268,12 @@ export function useDownload(stateMachine) {
         onPreviewDataReady(unpacked.files[0], unpacked);
       } else if (triggerBrowserSave) {
         stateMachine?.transitionTo(TransferState.COMPLETE);
-        // Trigger browser save for each unpacked file
-        unpacked.files.forEach((file, index) => {
-          setTimeout(() => {
-            downloadSingleFile(file);
-          }, index * 200);
-        });
+        // Trigger browser save. If it's a bundle, zip it so mobile doesn't block it.
+        if (unpacked.files.length === 1) {
+          downloadSingleFile(unpacked.files[0]);
+        } else {
+          downloadAsZip(unpacked.files);
+        }
 
         // Also save primary URL for download card
         const primaryBlob = unpacked.files[0].blob;
@@ -275,7 +306,7 @@ export function useDownload(stateMachine) {
       setIsDecrypting(false);
       throttle.dispose();
     }
-  }, [fileInfo, manualKey, isBurned, stateMachine, downloadSingleFile]);
+  }, [fileInfo, manualKey, isBurned, stateMachine, downloadSingleFile, downloadAsZip]);
 
   const resetDownloadState = useCallback(() => {
     revokeDecryptedUrl();
