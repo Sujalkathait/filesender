@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileText, Flame, Radio, Key, Loader2, Eye, Lock,
-  ShieldCheck, Clock, CheckCircle2, Shield, Info, Download
+  ShieldCheck, Clock, CheckCircle2, Shield, Info, Download, Archive
 } from 'lucide-react';
 import { formatBytes } from '../../utils/format';
 import { MeasurableProgressBar } from '../FeedbackStates';
@@ -37,6 +37,8 @@ export function DownloadFileCard({
   if (!fileInfo) return null;
 
   const isBurn = Boolean(fileInfo.burnOnRead ?? fileInfo.burn_on_read) || fileInfo.maxDownloads === 1 || fileInfo.max_downloads === 1;
+  const fileCount = fileInfo.file_count || fileInfo.fileCount || 1;
+  const isBundle = fileCount > 1 || (fileInfo.original_name || '').endsWith('.bundle');
 
   const expiresAtVal = fileInfo.expiresAt || fileInfo.expires_at;
   const expiresTimestamp = expiresAtVal ? new Date(expiresAtVal).getTime() : 0;
@@ -94,6 +96,19 @@ export function DownloadFileCard({
           </span>
         </div>
       </div>
+
+      {/* Bundle Info Notice */}
+      {isBundle && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)', padding: '8px 12px',
+          fontSize: '0.8rem', color: 'var(--fg-muted)', marginBottom: 12
+        }}>
+          <Archive size={14} style={{ flexShrink: 0, color: 'var(--accent)' }} />
+          <span>This transfer contains <strong>{fileCount} files</strong>. They will be downloaded together as a single <strong>.zip</strong> archive.</span>
+        </div>
+      )}
 
       {/* Burn After Read Alert */}
       {isBurn && !isBurned && (

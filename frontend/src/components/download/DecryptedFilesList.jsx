@@ -6,7 +6,9 @@ import {
   Download,
   Flame,
   RotateCcw,
-  FileText
+  FileText,
+  Archive,
+  Info
 } from 'lucide-react';
 import { formatBytes } from '../../utils/format';
 import { FileCategoryIcon } from '../common/FileCategoryIcon';
@@ -43,8 +45,19 @@ export function DecryptedFilesList({
               className="btn btn-primary btn-sm"
               onClick={onDownloadAllFiles}
             >
-              <FolderDown size={14} /> Download All ({decryptedFiles.length})
+              <Archive size={14} /> Download as ZIP ({decryptedFiles.length} files)
             </button>
+          </div>
+
+          {/* ZIP info notice */}
+          <div className="zip-info-notice" style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)', padding: '8px 12px',
+            fontSize: '0.78rem', color: 'var(--fg-muted)', marginBottom: 8
+          }}>
+            <Archive size={13} style={{ flexShrink: 0, color: 'var(--accent)' }} />
+            <span>All files will be packaged into a single <strong>.zip</strong> archive. You can also download files individually below.</span>
           </div>
 
           <div className="unpacked-files-list">
@@ -71,9 +84,9 @@ export function DecryptedFilesList({
                   <button
                     className="btn btn-primary btn-sm"
                     onClick={() => onDownloadSingleFile(file)}
-                    title="Download this file"
+                    title="Download this file individually"
                   >
-                    <Download size={13} /> Download
+                    <Download size={13} /> Save Only This
                   </button>
                 </div>
               </div>

@@ -667,22 +667,225 @@ The server verifies: `SHA-256("fileshare-access:" + submitted_PIN) === stored_ac
 
 ---
 
-### Q&A: Multiple Users Same QR
+### Q&A — 50 Questions: Multi-User QR, ZIP, Bundle, System Design & LLD
+
+---
 
 **Q44: Can two people download the same QR code file simultaneously?**
-Yes, if `max_downloads > 1`. Both people will receive the exact same file. Each download is independent and runs in parallel on the server. SQLite handles the concurrent counter increments safely using transactions.
+Yes, if `max_downloads > 1`. Both people receive the exact same decrypted file independently. Each download runs as a separate HTTP request handled by the Flask server in parallel. SQLite handles the concurrent download counter increments safely using transactions with row-level locking.
 
 **Q45: What is a Race Condition?**
-A race condition is a bug where two processes read and modify the same data at the same time, producing an incorrect result. In FileShare, we prevent race conditions on the download counter using SQLite transactions (BEGIN/COMMIT with row locks).
+A race condition is a concurrency bug where two or more threads read and then modify shared data simultaneously, producing an incorrect result. Classic example: Thread A reads `counter=0`, Thread B reads `counter=0`, both think they are the first downloader, both increment to 1, but the limit should have been hit. FileShare prevents this using SQLite database transactions.
 
-**Q46: What is Atomicity in this context?**
-Atomicity means the check-then-delete (for Burn-on-Read) happens as a single, indivisible database transaction. No other request can see the file between the "check" step and the "delete" step. This guarantees only one person ever gets the burned file.
+**Q46: What is Atomicity in the context of Burn-on-Read?**
+Atomicity means that the "check if burned + mark as burned + delete file" sequence is a single, indivisible database transaction. No other request can observe the state between these steps. If Thread A acquires the lock and marks the file as burned, Thread B (arriving at the same millisecond) is blocked until Thread A's transaction commits, then Thread B reads `burned=True` and returns `410 Gone`.
 
-**Q47: If Person A's download fails halfway, does the counter still increment?**
-Yes. The counter is incremented at the moment the server begins streaming the file, not at completion. This is a deliberate security design: even a partial download is counted to prevent attackers from repeatedly starting downloads to exhaust the counter while never fully receiving the file. The sender can set a higher `max_downloads` limit to account for failed downloads.
+**Q47: If a download fails halfway, does the counter still increment?**
+Yes. The counter increments when the server **begins streaming** the file, not when the client confirms receipt. This is intentional: preventing attackers from repeatedly initiating downloads (triggering the counter) while aborting midway to exhaust the limit and block legitimate users.
 
 **Q48: Can the sender see who downloaded the file?**
-No. FileShare is designed to be 100% anonymous. The server does not log IP addresses or device identifiers for download events. The sender can only see the total `download_count` — not who performed each download.
+No. FileShare is 100% anonymous. The server records only a `download_count` integer. No IP addresses, device fingerprints, or user identifiers are logged for download events. Privacy is a core design principle.
 
-**Q49: What happens if the file expires while someone is downloading it?**
-If the expiry time passes mid-download, the file data that is already streaming to the client will continue to completion (the TCP stream is already open). The expiry only prevents **new** download requests from starting.
+**Q49: What happens if the file expires while someone is mid-download?**
+The file data already streaming to that client continues to completion — the TCP stream is already open and bytes are in transit. The expiry check only blocks **new** download requests. The server does not forcibly terminate existing streaming connections when the expiry timestamp passes.
+
+**Q50: What is the system design pattern used for multi-user concurrent downloads?**
+**Optimistic Concurrency with a Database Counter Guard.** The download counter acts as a distributed semaphore. The pattern is: `BEGIN TRANSACTION → SELECT FOR UPDATE → check limit → increment → COMMIT`. This is a classic **Database-as-a-Locking-Backend** pattern, simpler and more reliable than distributed locks (like Redis) for single-instance deployments.
+
+**Q51: What is the Low Level Design (LLD) of the download counter?**
+```
+SQLite Table: files
+  ├── id            TEXT PRIMARY KEY
+  ├── max_downloads INT
+  ├── download_count INT  DEFAULT 0
+  ├── burned        BOOLEAN DEFAULT 0
+  └── ...
+
+Download Request Handler (LLD):
+  1. Parse file_id and access_proof from request
+  2. Verify: SHA-256("fileshare-access:" + PIN) == stored access_hash
+  3. BEGIN IMMEDIATE TRANSACTION (acquires write lock)
+  4. SELECT * FROM files WHERE id = file_id (with lock held)
+  5. IF burned == 1 → ROLLBACK → return 410
+  6. IF download_count >= max_downloads → ROLLBACK → return 410
+  7. IF burn_on_read == 1 → SET burned = 1
+  8. SET download_count = download_count + 1
+  9. COMMIT
+  10. Open file from /tmp and stream response
+```
+
+**Q52: What HTTP status code does the server return when the download limit is exceeded?**
+`410 Gone`. The RFC definition of 410 is "the resource is permanently gone." This is the semantically correct code because the transfer has been exhausted. The client (browser) shows a "Download limit has been reached" error to the user.
+
+**Q53: What is the System Design difference between max_downloads=1 and Burn-on-Read?**
+They sound similar but are different:
+- `max_downloads=1` → server blocks the second download request, but the file stays on disk until it expires.
+- `burn_on_read=1` → server marks the file as burned AND deletes it from disk immediately after the first download, freeing storage instantly.
+
+**Q54: What is WAL mode in SQLite and why does FileShare use it?**
+WAL stands for **Write-Ahead Logging**. In WAL mode, write transactions are written to a separate `.wal` file first, then merged into the main database. This allows multiple concurrent read transactions to proceed while one write transaction is in progress. Without WAL, SQLite uses exclusive locks that block all readers during a write, severely degrading concurrent download performance.
+
+**Q55: What is the FSBUNDLE1 format?**
+It is FileShare's proprietary binary container for packaging multiple files before encryption. Structure: `[8-byte magic header "FSBUNDLE1"] [4-byte manifest length (Uint32 LE)] [manifest JSON bytes] [file1 bytes] [file2 bytes] ... [fileN bytes]`. The manifest contains each file's name, size (bytes), and MIME type.
+
+**Q56: Why use a custom binary format instead of ZIP for the internal bundle?**
+Because the encryption pipeline already applies gzip compression per 4 MB chunk during `encryptFile()`. Using ZIP (which also uses DEFLATE/gzip internally) would double-compress the data, wasting CPU and potentially making the file larger. FSBUNDLE1 skips compression and lets the encryption layer handle it. The ZIP is only created on the **receiver side** for the final user-facing download.
+
+**Q57: What is the magic header and why is it 8 bytes?**
+The magic header `0x46 0x53 0x42 0x55 0x4e 0x44 0x4c 0x31` spells `FSBUNDL1` in ASCII. Magic bytes are a universal technique to distinguish file formats without relying on file extensions (which can be spoofed). 8 bytes provides a collision probability of 1 in 2^64, making it practically impossible for a random file to accidentally be detected as a bundle.
+
+**Q58: How does the receiver's browser know which bytes belong to File 1 vs File 2 in the bundle?**
+It reads the manifest JSON, which contains the exact `size` in bytes for every file. The `unpackFiles()` function keeps a running byte `offset` variable. For each file: read `size` bytes starting at current `offset`, then advance `offset += size`. Since sizes are recorded at pack time, the reconstruction is exact and deterministic.
+
+**Q59: What happens on the receiver side if the bundle magic header is missing?**
+`isBundleData()` reads the first 8 bytes and compares them. If the magic bytes do not match, it treats the decrypted data as a **single plain file** and creates one Blob from the entire `Uint8Array`. This is the correct behavior for legitimate single-file transfers, and also for any legacy format.
+
+**Q60: How does fflate generate the ZIP on the receiver's device?**
+`fflate.zip()` takes a JavaScript object where keys are filenames and values are `Uint8Array` binary data. With `level: 0` (Store Only), it generates a valid ZIP archive by writing ZIP Local File Header records + raw data bytes + ZIP Central Directory at the end. The entire operation happens synchronously in the browser's JavaScript engine with no server communication.
+
+**Q61: Why is ZIP compression level set to 0 (Store Only) in fflate?**
+Because the files were already compressed by gzip during the sender's encryption pipeline. Attempting to DEFLATE-compress data that is already compressed yields no reduction in size and wastes mobile CPU cycles. Level 0 means: just wrap the bytes in a ZIP container structure, no compression algorithm applied.
+
+**Q62: Does the ZIP generation block the browser UI thread?**
+The `fflate.zip()` call used is the **asynchronous** callback-based API. It yields control back to the browser's event loop between operations, so the UI stays responsive. For very large bundles, the user sees the page remain interactive rather than freezing for seconds.
+
+**Q63: What is the output filename of the ZIP?**
+`FileShare_Bundle_N_files.zip` where N is the number of files in the transfer. This naming convention immediately communicates to the receiver that they have received a multi-file package.
+
+**Q64: What does the receiver's browser UI show for a bundle transfer?**
+1. Before download: A notice badge says "This transfer contains N files. They will be downloaded together as a single .zip archive."
+2. After decryption succeeds: An "Archive" icon button says "Download as ZIP (N files)".
+3. Individual files are also listed with "Preview" and "Save Only This" buttons for granular access.
+
+**Q65: What does the receiver see for a single-file transfer?**
+1. Before download: Standard file icon, file name, size, and AES-256-GCM badge.
+2. After decryption: "Save File to Downloads" button links directly to the decrypted Blob URL. No ZIP is generated — the file is downloaded as-is with its original name and extension.
+
+**Q66: What is the Low Level Design of the receiver-side bundle unpack?**
+```
+Input: Uint8Array (decryptedBytes), string (fallbackName), string (fallbackMime)
+
+1. Read bytes 0-7: check for FSBUNDLE1 magic
+2. IF no magic: return { isBundle: false, files: [{ blob: Blob(decryptedBytes) }] }
+3. offset = 8
+4. manifestLength = DataView.getUint32(offset, true)
+5. offset += 4
+6. manifestJsonBytes = decryptedBytes.slice(offset, offset + manifestLength)
+7. offset += manifestLength
+8. manifest = JSON.parse(TextDecoder.decode(manifestJsonBytes))
+9. files = []
+10. FOR each item in manifest.files:
+    a. fileBytes = decryptedBytes.slice(offset, offset + item.size)
+    b. offset += item.size
+    c. files.push({ name, size, type, data: fileBytes, blob: Blob(fileBytes) })
+11. return { isBundle: true, files }
+```
+
+**Q67: What is the System Design of the full end-to-end multi-file transfer?**
+```
+SENDER                    SERVER                    RECEIVER
+──────                    ──────                    ────────
+packFiles()               SQLite DB                 useDownload()
+  FSBUNDLE1 container  ──► api.upload() HTTP PUT     api.download() HTTP GET
+encryptFile()              /tmp storage              decryptFile()
+  gzip + AES-256-GCM                                 unpackFiles()
+  4 MB chunks                                         fflate.zip()
+generateKey()              access_hash check          triggerDownload()
+  6-digit PIN           ──► 410 if limit hit          .zip to device
+QR Code / PIN share        burn_on_read delete
+```
+
+**Q68: What is PBKDF2 and where is it used?**
+PBKDF2 (Password-Based Key Derivation Function 2) is used to derive a wrapping key from the 6-digit PIN. It applies SHA-256 hashing 600,000 times (OWASP 2023 recommendation) to make brute-force attacks computationally expensive. The derived key is used to wrap (encrypt) the real AES file key, which is then stored server-side.
+
+**Q69: What is Key Wrapping and why is it used instead of encrypting with the PIN directly?**
+The real file encryption key is a random 256-bit AES key generated by `crypto.subtle.generateKey()`. This key is then wrapped (encrypted) using a key derived from the PIN. This two-layer approach means: (1) The file is encrypted with a strong random key, not the weak PIN directly. (2) The wrapped key can be stored server-side safely. (3) On the receiver side, they unwrap the file key using their PIN, then decrypt the file with the unwrapped key.
+
+**Q70: What is the Access Proof system and what attack does it prevent?**
+The access proof is `SHA-256("fileshare-access:" + PIN)`. It is sent with every download request so the server can verify the requester knows the PIN without the server ever seeing the PIN itself. It prevents **File ID Enumeration Attacks**: even if an attacker guesses a valid file ID (32-character hex), they cannot download the file without the correct SHA-256 proof. Without this, the server would be vulnerable to brute-force enumeration of all stored files.
+
+**Q71: What is the difference between the file_id and the PIN/key?**
+- **PIN** (6-digit number, e.g., `482901`): The human-usable code shown on screen and in the QR code. Used to derive the access proof and unwrap the file key.
+- **file_id**: A deterministic 32-character hex derived from `SHA-256("file_id_salt:" + PIN)`. Used as the database primary key and URL path parameter. The server never sees the PIN; it stores only the file_id and access_hash.
+
+**Q72: Why is the file_id derived from the PIN rather than being random?**
+So that the receiver can independently compute the correct `file_id` from the PIN they received, without the server needing to do a PIN-to-ID lookup. This stateless derivation is a Zero-Knowledge property: the server provides the file only to someone who can prove PIN knowledge, without the server learning the PIN itself.
+
+**Q73: What is the chunked encryption format?**
+Files larger than 4 MB are encrypted chunk by chunk. Each chunk: `[4-byte LE chunk length header] [AES-256-GCM ciphertext]`. The 4-byte header makes the stream self-describing — the decryptor can read exactly the right number of bytes for each chunk without knowing the total size in advance.
+
+**Q74: How does the chunk IV work for security?**
+Each chunk uses a unique IV derived from the base IV using a counter: `chunkIV[n] = baseIV XOR n` (implemented by adding the chunk index to bytes 8-11 of the IV). This ensures the same plaintext chunk encrypted at different positions produces different ciphertext, preventing cryptanalysis attacks based on IV reuse.
+
+**Q75: What is the difference between single-shot and chunked encryption?**
+- **Single-shot (legacy)**: The entire file is encrypted as one AES-GCM operation. The entire ciphertext must be in RAM simultaneously. Used for files ≤ 4 MB.
+- **Chunked (new)**: The file is processed 4 MB at a time. Only one chunk is in RAM at a time. Used for files > 4 MB. This allows 1 GB files to be processed on devices with only 512 MB of RAM.
+
+**Q76: How does the receiver know whether a file was encrypted in chunked or single-shot mode?**
+The server stores a `checksum` column in the database. For chunked files: `checksum = "chunked:4194304"`. For single-shot files: `checksum = ""`. The receiver's `useDownload.js` calls `isChunkedMarker(fileInfo.checksum)` and passes the boolean to `decryptFile()` which selects the correct decryption path.
+
+**Q77: What is the role of gzip compression in the encryption pipeline?**
+Before encrypting each chunk, the data is gzip-compressed using the browser's built-in `CompressionStream` API. This reduces the amount of data that needs to be encrypted and uploaded. Compression is automatically skipped if the first chunk's compressed size is ≥ 98% of the original (meaning the file is already compressed, like JPEG or MP4).
+
+**Q78: What is the steganography feature and when is it used?**
+When the sender enables "Vault Mode", the encrypted payload is hidden inside a PNG image using LSB (Least Significant Bit) steganography. The encrypted bytes are spread across the R, G, B channels of pixel data. To the network and casual observers, it looks like a normal artwork image. This provides plausible deniability — no one can tell the image contains a hidden file without knowing to look.
+
+**Q79: What is Burn-on-Read and what are its use cases?**
+Burn-on-Read makes the file permanently self-destruct on the server immediately after the first download. Use cases: (1) Sharing one-time passwords or secret keys. (2) Legal documents that should only be accessible once. (3) Confidential messages where forward secrecy is required. After burning, even if someone intercepts the QR code, the file is already gone.
+
+**Q80: What is the System Architecture pattern of FileShare overall?**
+**Client-Side Encryption Architecture (Zero-Knowledge Backend)**. The server is a "dumb" storage node: it stores encrypted blobs and metadata but cannot read any file content. All crypto operations happen in the browser using the Web Crypto API. This is the same pattern used by end-to-end encrypted messengers like Signal and ProtonMail.
+
+**Q81: What database does FileShare use and why?**
+SQLite via Python's built-in `sqlite3` module. Chosen because: (1) Zero-configuration — no database server process needed. (2) Serverless environments like Vercel cannot run persistent server processes. (3) For a file-sharing app with moderate concurrent users, SQLite's WAL mode provides sufficient throughput. (4) The entire database is a single file, making it easy to manage and back up.
+
+**Q82: What happens to data stored in /tmp on Vercel when the serverless function restarts?**
+It is lost. Vercel's serverless functions are ephemeral — their `/tmp` directory is wiped between cold starts. This is acceptable for FileShare because: (1) Files are intentionally temporary. (2) The SQLite database is also in `/tmp`, so metadata and files are always in sync. (3) Users are notified that files expire within a set time limit.
+
+**Q83: What is a Serverless Function and how does it differ from a traditional server?**
+A traditional server is a permanently running process that handles all requests. A serverless function is a stateless, ephemeral code unit that boots on demand for each request and shuts down after. FileShare's Flask backend runs as a Vercel Serverless Function — fast for short-lived HTTP requests, no idle server cost, but no persistent memory state between requests.
+
+**Q84: What is the WebSocket/Socket.IO feature used for?**
+Socket.IO provides a real-time, bidirectional channel between sender and receiver. The sender's browser connects and receives live events when the receiver scans the QR, starts downloading, and completes the download. This powers the "Transfer Status" indicator on the sender's screen without polling the server every second.
+
+**Q85: What is the difference between REST and WebSocket in this system?**
+REST (HTTP) is used for: file upload (`PUT /api/upload`), download (`GET /api/download/:id`), file info (`GET /api/info/:id`). These are stateless request-response operations. WebSocket (Socket.IO) is used for: real-time transfer status events (receiver connected, download started, download complete). These are persistent, bidirectional, event-driven notifications.
+
+**Q86: What is CORS and why is it configured in the Flask backend?**
+CORS (Cross-Origin Resource Sharing) is a browser security policy that blocks JavaScript on one domain from making HTTP requests to a different domain. Since the React frontend (e.g., `filesender-coral.vercel.app`) makes requests to the Flask API (same domain, different path `/api`), CORS headers must be set to allow this. `flask-cors` handles this automatically.
+
+**Q87: What is the QR code encoding scheme?**
+The QR code encodes the full transfer URL:
+`https://filesender-coral.vercel.app/download?code=XXXXXX#key=XXXXXX`
+The 6-digit PIN is in the `?code=` parameter. The encryption key (also the PIN in the new scheme) is in the `#key=` URL fragment. The fragment is never sent to the server — it lives only in the browser's memory. When the receiver scans the QR, their browser auto-navigates to the URL, extracts the PIN from `?code` and the key from `#key`, and auto-initiates the search and decryption.
+
+**Q88: What are the OSI layers involved in a file download?**
+All 7 layers are active:
+- **Layer 7 (Application):** HTTP GET request, JSON response headers, binary blob stream
+- **Layer 6 (Presentation):** TLS encryption of the HTTP channel
+- **Layer 5 (Session):** TCP session management (SYN/ACK handshake)
+- **Layer 4 (Transport):** TCP segments, port 443, flow control and retransmission
+- **Layer 3 (Network):** IP packets routed from Vercel's CDN to the user's ISP
+- **Layer 2 (Data Link):** Ethernet/Wi-Fi frames
+- **Layer 1 (Physical):** Radio waves (Wi-Fi) or electrical pulses (Ethernet)
+
+**Q89: How does the progress bar work technically?**
+The `api.download()` call uses the Fetch API's `ReadableStream` to read the response body in chunks. After each chunk is received, `received_bytes += chunk.length` is calculated and `(received / total) * 100` gives the percentage. The `onProgress(received, total)` callback is called per chunk and debounced via `createProgressThrottle()` to update the React state at most once per 200ms, preventing excessive re-renders.
+
+**Q90: What is the Maximum file size and why?**
+1 GB per transfer. This limit is set to protect the server's `/tmp` storage (which has a global 1 GB cap). The limit is enforced at two levels: (1) Client-side validation in `fileValidator.js` prevents selection of files exceeding 1 GB. (2) Server-side, the Flask route validates `Content-Length` and rejects with `413 Payload Too Large` if exceeded.
+
+**Q91: What does "Zero-Knowledge" mean in the context of FileShare?**
+Zero-Knowledge means the server has zero knowledge of the plaintext file contents. It stores only the encrypted ciphertext blob. Even if the server is hacked, subpoenaed, or the admin is malicious, they cannot read any transferred files without the user's PIN. The PIN never leaves the user's browser.
+
+**Q92: What is the role of `owner_token` and how does it work?**
+When a file is uploaded, the server generates a random `owner_token` and returns it to the sender. The sender's browser stores it in `sessionStorage`. To cancel/delete a transfer early, the sender sends a `DELETE /api/files/{id}` request with the `owner_token` in the header. The server verifies the token matches the database record before deleting. No login or account is needed — the token acts as a temporary owner proof.
+
+**Q93: What happens when 20 people scan the QR simultaneously and max_downloads is 5?**
+The server processes requests in FIFO order of lock acquisition:
+- Requests 1–5 acquire the SQLite write lock one by one, each incrementing the counter (0→1→2→3→4→5). All 5 succeed and receive the file.
+- Requests 6–20 acquire the lock after the counter reaches 5. They read `download_count (5) >= max_downloads (5)`, rollback, and return `410 Gone`.
+- The UI shows "Download limit has been reached. This file is no longer available."
+
+Result: Exactly 5 people get the file. The other 15 get a clear, informative error message. No data corruption, no double-counting, no silent failures.
+
