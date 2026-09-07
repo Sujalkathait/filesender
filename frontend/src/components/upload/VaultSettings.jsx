@@ -70,7 +70,7 @@ export function VaultSettings({
                 <span className="badge badge-amber">ALWAYS ON</span>
               </div>
               <span className="option-card__description">
-                Every file permanently self-destructs from the server immediately once downloaded. No data is ever stored.
+                Every file permanently self-destructs from the server immediately once downloaded. This guarantees privacy and instantly frees up space in the shared global storage.
               </span>
             </div>
           </div>
@@ -250,7 +250,7 @@ export function VaultSettings({
           </select>
 
           <span style={{ fontSize: '0.78rem', color: 'var(--fg-muted)', flex: '1 1 100%' }}>
-            ⏱ {currentPreset.hint}. Transfer code and file will automatically self-destruct once countdown reaches zero.
+            ⏱ {currentPreset.hint}. Files self-destruct on expiry. Choosing a short countdown helps free up global server storage for everyone!
           </span>
         </div>
       </div>
