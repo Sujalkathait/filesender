@@ -239,9 +239,7 @@ button, a, input, select, textarea {
   top: 0;
   z-index: 50;
   width: 100%;
-  background-color: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background-color: var(--bg-app);
   border-bottom: 1px solid var(--border-default);
   transition: var(--transition-fast);
 }
@@ -432,9 +430,7 @@ button, a, input, select, textarea {
     left: 0;
     right: 0;
     z-index: 90;
-    background-color: var(--glass-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background-color: var(--bg-app);
     border-top: 1px solid var(--border-default);
     padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
     gap: var(--space-1);
@@ -5940,3 +5936,38 @@ button, a, input, select, textarea {
     grid-template-columns: 1fr 1fr !important;
   }
 }
+
+/* --- Mobile Performance & UI/UX Optimizations ---------------------------- */
+@media (max-width: 768px) {
+  /* Reduce global padding to maximize screen real estate */
+  .main-content {
+    padding: var(--space-3) var(--space-2) calc(var(--space-16) + 70px) !important;
+  }
+  
+  /* Ensure all interactive elements have fat-finger touch targets */
+  button, select, input, .btn {
+    min-height: 44px;
+  }
+
+  /* Shrink large headings so they do not break lines awkwardly on narrow screens */
+  h1, .hero-title {
+    font-size: 2.25rem !important;
+    line-height: 1.1 !important;
+  }
+  h2 {
+    font-size: 1.75rem !important;
+  }
+  
+  /* Make primary cards use screen real estate better */
+  .upload-container, .download-container {
+    padding: var(--space-4) var(--space-3) !important;
+    border-radius: var(--radius-md) !important;
+    margin: 0 !important;
+  }
+  
+  /* Remove heavy box-shadows on mobile to save GPU cycles */
+  .hero-card, .upload-container, .download-container {
+    box-shadow: var(--shadow-sm) !important;
+  }
+}
+
