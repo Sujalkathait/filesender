@@ -535,3 +535,154 @@ No. The ZIP is generated entirely in the receiver's browser using the `fflate` J
 
 **Q43: Why is the ZIP download called `FileShare_Bundle_N_files.zip`?**
 We auto-generate this name so the receiver immediately understands they received a multi-file transfer. They can extract it to get back their original files with their original names and folder structure preserved.
+
+---
+
+## 9. Multiple Users — Same QR Code Scenario
+
+This is one of the most important real-world questions for the viva: **What happens when multiple people scan the same QR code at the same time?**
+
+### How the System is Designed for This
+
+FileShare is built with the assumption that a sender may intentionally or accidentally share the QR code/PIN with multiple people. The system handles every case gracefully using a **download counter** and **atomic server-side guards**.
+
+---
+
+### Case 1: Sender Allows Multiple Downloads (Default Behavior)
+
+When the sender uploads a file, they set a **Max Downloads** limit (default: 10). This is stored in the database as `max_downloads`.
+
+**Flow for 5 people scanning the same QR:**
+
+```
+Person 1 scans QR → Server checks: downloads_so_far (0) < max_downloads (10) ✓ → Download allowed. Counter → 1
+Person 2 scans QR → Server checks: downloads_so_far (1) < max_downloads (10) ✓ → Download allowed. Counter → 2
+Person 3 scans QR → Server checks: downloads_so_far (2) < max_downloads (10) ✓ → Download allowed. Counter → 3
+...
+Person 10 scans  → Server checks: downloads_so_far (9) < max_downloads (10) ✓ → Download allowed. Counter → 10
+Person 11 scans  → Server checks: downloads_so_far (10) >= max_downloads (10) ✗ → HTTP 410 Gone
+```
+
+**Result:** All 10 people successfully receive the exact same decrypted file. Person 11 onwards sees a "Download limit reached" error.
+
+Every person who downloads gets their own independent, complete, decrypted copy. The server file is not deleted between downloads (unless Burn-on-Read is ON).
+
+---
+
+### Case 2: Burn-on-Read (Only ONE Person Can Download)
+
+If the sender enables **Burn After Read**, the `burn_on_read` flag is set to `1`. The server's download handler becomes **atomic**:
+
+```python
+# Server-side pseudocode (atomic operation)
+with db_lock:
+    file = db.get(file_id)
+    if file.burned:
+        return 410 Gone  # Already deleted
+    mark_as_burned(file_id)   # Flag it FIRST
+    
+delete_from_disk(file.path)   # THEN delete the physical file
+return file_data_to_user      # THEN send it
+```
+
+**Why this order matters (Race Condition Prevention):**
+
+If two people scan at the exact same millisecond:
+
+```
+Person A scans ──────► DB lock acquired ──► Mark as burned ──► Delete file ──► Stream to A ✓
+Person B scans ──────► DB lock waiting  ──► Lock released  ──► Checks: already burned ──► 410 Gone ✗
+```
+
+The database-level lock ensures that even if 1000 people scan simultaneously, **exactly one** gets the file. The rest receive `410 Gone`. This is called **atomicity** — the check-and-delete operation is treated as one indivisible unit.
+
+---
+
+### Case 3: Two People Scan at the Exact Same Time (Race Condition Test)
+
+This is the hardest case. What if `max_downloads = 1` and two people hit the server at literally the same nanosecond?
+
+**Without a lock (naive/broken implementation):**
+```
+Thread A: read counter → 0  (counter < 1, so allow)
+Thread B: read counter → 0  (counter < 1, so allow) ← Race condition!
+Thread A: increment counter → 1
+Thread B: increment counter → 1
+Both A and B receive the file → Download limit violated!
+```
+
+**With SQLite row-level locking (FileShare's implementation):**
+```
+Thread A: BEGIN TRANSACTION → acquires row lock
+Thread B: BEGIN TRANSACTION → BLOCKED, waiting for lock
+Thread A: read counter → 0, increment → 1, COMMIT
+Thread B: lock released → reads counter → 1, (1 >= max_downloads), ROLLBACK → 410 Gone
+```
+
+SQLite's Write-Ahead Logging (WAL) mode ensures that concurrent write transactions are serialized. Only one download is counted at a time.
+
+---
+
+### Case 4: What Does Each Person See?
+
+| Person | Situation | What They See |
+|---|---|---|
+| Person 1 | Scans within limit | File downloads successfully |
+| Person 2–10 | Scans within limit | File downloads successfully (same file) |
+| Person 11 | Max limit reached | "Download limit has been reached. This file is no longer available." |
+| Person X | File expired by time | "This file is no longer available because the sharing time limit has expired." |
+| Person Y (Burn) | Already downloaded by someone | "This file had Burn After Read enabled and was permanently deleted." |
+| Person Z | Network error mid-download | TCP connection drops. They must scan and retry. The counter was already incremented. |
+
+---
+
+### Case 5: Sender Revokes the QR During Active Downloads
+
+The sender can click **Cancel Transfer** in the app. This calls the API with their `owner_token`:
+
+```
+DELETE /api/files/{id}   (with owner_token in header)
+```
+
+The server:
+1. Verifies the `owner_token` matches the database record.
+2. Marks the file as deleted/burned.
+3. Deletes the physical encrypted file from `/tmp`.
+
+Any ongoing download that has already started will complete (the bytes are already streaming to the browser). Any new scan after deletion returns `404 Not Found`.
+
+---
+
+### Case 6: What is the Access Proof and Why?
+
+Every download request must include an **access proof** — a SHA-256 hash of the PIN:
+
+```js
+proof = SHA-256("fileshare-access:" + PIN)
+```
+
+This prevents random internet scanners from downloading files by guessing file IDs. Even if someone discovers the internal file ID (a 32-character hex string), they cannot download the file without knowing the PIN. Only the person with the QR code or PIN can generate the correct proof.
+
+The server verifies: `SHA-256("fileshare-access:" + submitted_PIN) === stored_access_hash`
+
+---
+
+### Q&A: Multiple Users Same QR
+
+**Q44: Can two people download the same QR code file simultaneously?**
+Yes, if `max_downloads > 1`. Both people will receive the exact same file. Each download is independent and runs in parallel on the server. SQLite handles the concurrent counter increments safely using transactions.
+
+**Q45: What is a Race Condition?**
+A race condition is a bug where two processes read and modify the same data at the same time, producing an incorrect result. In FileShare, we prevent race conditions on the download counter using SQLite transactions (BEGIN/COMMIT with row locks).
+
+**Q46: What is Atomicity in this context?**
+Atomicity means the check-then-delete (for Burn-on-Read) happens as a single, indivisible database transaction. No other request can see the file between the "check" step and the "delete" step. This guarantees only one person ever gets the burned file.
+
+**Q47: If Person A's download fails halfway, does the counter still increment?**
+Yes. The counter is incremented at the moment the server begins streaming the file, not at completion. This is a deliberate security design: even a partial download is counted to prevent attackers from repeatedly starting downloads to exhaust the counter while never fully receiving the file. The sender can set a higher `max_downloads` limit to account for failed downloads.
+
+**Q48: Can the sender see who downloaded the file?**
+No. FileShare is designed to be 100% anonymous. The server does not log IP addresses or device identifiers for download events. The sender can only see the total `download_count` — not who performed each download.
+
+**Q49: What happens if the file expires while someone is downloading it?**
+If the expiry time passes mid-download, the file data that is already streaming to the client will continue to completion (the TCP stream is already open). The expiry only prevents **new** download requests from starting.
