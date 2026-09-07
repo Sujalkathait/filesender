@@ -107,7 +107,7 @@ def test_download_count_and_limit_enforcement():
     fid = r.get_json()["file_id"]
 
     # 1st download
-    d1 = client.get(f"/api/v1/files/{fid}")
+    d1 = client.get(f"/api/v1/files/{fid}/content")
     assert d1.status_code == 200
     assert d1.data == b"quota-test-payload"
 
@@ -117,7 +117,7 @@ def test_download_count_and_limit_enforcement():
     assert info1["downloads_remaining"] == 2
 
     # 2nd download
-    d2 = client.get(f"/api/v1/files/{fid}")
+    d2 = client.get(f"/api/v1/files/{fid}/content")
     assert d2.status_code == 200
     assert d2.data == b"quota-test-payload"
 
@@ -126,12 +126,12 @@ def test_download_count_and_limit_enforcement():
     assert info2["downloads_remaining"] == 1
 
     # 3rd download (max limit)
-    d3 = client.get(f"/api/v1/files/{fid}")
+    d3 = client.get(f"/api/v1/files/{fid}/content")
     assert d3.status_code == 200
     assert d3.data == b"quota-test-payload"
 
     # 4th download must be rejected with 410 Gone and specific message
-    d4 = client.get(f"/api/v1/files/{fid}")
+    d4 = client.get(f"/api/v1/files/{fid}/content")
     assert d4.status_code == 410
     d4_json = d4.get_json()
     assert "download limit has been reached" in d4_json["detail"].lower()
@@ -159,7 +159,7 @@ def test_unlimited_downloads_mode():
     fid = r.get_json()["file_id"]
 
     for _ in range(10):
-        res = client.get(f"/api/v1/files/{fid}")
+        res = client.get(f"/api/v1/files/{fid}/content")
         assert res.status_code == 200
         assert res.data == b"unlimited-content"
 
@@ -194,7 +194,7 @@ def test_expiry_time_rejection():
     assert info_res.status_code == 410
     assert "sharing time limit has expired" in info_res.get_json()["detail"].lower()
 
-    down_res = client.get(f"/api/v1/files/{fid}")
+    down_res = client.get(f"/api/v1/files/{fid}/content")
     assert down_res.status_code == 410
     assert "sharing time limit has expired" in down_res.get_json()["detail"].lower()
 
@@ -217,17 +217,17 @@ def test_burn_on_read_lifecycle():
     fid = r.get_json()["file_id"]
 
     # Preview does not burn
-    prev = client.get(f"/api/v1/files/{fid}?preview=true")
+    prev = client.get(f"/api/v1/files/{fid}/content?preview=true")
     assert prev.status_code == 200
     assert prev.data == b"top-secret-burn"
 
     # Actual download succeeds
-    d1 = client.get(f"/api/v1/files/{fid}")
+    d1 = client.get(f"/api/v1/files/{fid}/content")
     assert d1.status_code == 200
     assert d1.data == b"top-secret-burn"
 
     # Second download returns 410 Gone with burn/self-destruct message
-    d2 = client.get(f"/api/v1/files/{fid}")
+    d2 = client.get(f"/api/v1/files/{fid}/content")
     assert d2.status_code == 410
     assert "burn after read" in d2.get_json()["detail"].lower() or "self-destruct" in d2.get_json()["detail"].lower()
 

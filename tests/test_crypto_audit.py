@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from api.services.transfer_service import TransferService
 from api.database import DatabaseManager
 from api.storage import StorageManager
-from api.errors import ForbiddenError, NotFoundError
+from api.errors import ForbiddenError, NotFoundError, GoneError
 
 @pytest.fixture
 def db_path(tmp_path):
@@ -19,8 +19,8 @@ def storage_dir(tmp_path):
 def service(db_path, storage_dir):
     os.environ["DB_PATH"] = db_path
     os.environ["UPLOAD_DIR"] = storage_dir
-    db = DatabaseManager()
-    storage = StorageManager()
+    db = DatabaseManager(db_path)
+    storage = StorageManager(storage_dir)
     return TransferService(db, storage)
 
 def test_wrapped_key_and_iv_saved(service, db_path):
@@ -34,18 +34,19 @@ def test_wrapped_key_and_iv_saved(service, db_path):
         "wrapped_key": "fake_wrapped_key",
         "wrap_iv": "fake_wrap_iv",
         "compressed": "1",
-        "max_downloads": "5",
+        "max_downloads": 5,
         "burn_on_read": "0",
-        "expiry_seconds": "3600",
+        "expiry_seconds": 3600,
         "sharing_mode": "standard",
-        "access_hash": "hash123"
+        "access_hash": "hash123",
+        "expiry_hours": 1.0
     }
     
     res = service.init_chunked_upload(form_data, form_data["filename"], "application/octet-stream")
     file_id = res["file_id"]
     
     # Check database
-    db = DatabaseManager()
+    db = DatabaseManager(db_path)
     conn = db.get_connection()
     row = conn.execute("SELECT wrapped_key, wrap_iv FROM files WHERE id = ?", (file_id,)).fetchone()
     conn.close()
@@ -65,11 +66,12 @@ def test_burn_on_read_race_condition(service, db_path):
         "wrapped_key": "fake_wrapped_key",
         "wrap_iv": "fake_wrap_iv",
         "compressed": "1",
-        "max_downloads": "1",
+        "max_downloads": 1,
         "burn_on_read": "1",
-        "expiry_seconds": "3600",
+        "expiry_seconds": 3600,
         "sharing_mode": "burn_on_read",
-        "access_hash": "hash123"
+        "access_hash": "hash123",
+        "expiry_hours": 1.0
     }
     
     res = service.init_chunked_upload(form_data, form_data["filename"], "application/octet-stream")
@@ -77,16 +79,21 @@ def test_burn_on_read_race_condition(service, db_path):
     
     # Emulate the chunks being completed
     # Actually just set the status to ready in DB since we just want to test download
-    db = DatabaseManager()
+    db = DatabaseManager(db_path)
     conn = db.get_connection()
     conn.execute("UPDATE files SET status = 'ready' WHERE id = ?", (file_id,))
     conn.commit()
+
+    import os
+    os.makedirs(os.path.dirname(service.storage.get_file_path(file_id)), exist_ok=True)
+    with open(service.storage.get_file_path(file_id), 'wb') as f: f.write(b'dummy')
+
     
     # First download attempt should succeed and reserve the file
     service.download_file(file_id, preview=False, proof="hash123")
     
     # Second download attempt should immediately fail with NotFoundError because it's reserved
-    with pytest.raises(NotFoundError):
+    with pytest.raises(GoneError):
         service.download_file(file_id, preview=False, proof="hash123")
     
     conn.close()
@@ -102,20 +109,26 @@ def test_failed_access_lockout(service, db_path):
         "wrapped_key": "fake_wrapped_key",
         "wrap_iv": "fake_wrap_iv",
         "compressed": "1",
-        "max_downloads": "5",
+        "max_downloads": 5,
         "burn_on_read": "0",
-        "expiry_seconds": "3600",
+        "expiry_seconds": 3600,
         "sharing_mode": "standard",
-        "access_hash": "hash123"
+        "access_hash": "hash123",
+        "expiry_hours": 1.0
     }
     
     res = service.init_chunked_upload(form_data, form_data["filename"], "application/octet-stream")
     file_id = res["file_id"]
     
-    db = DatabaseManager()
+    db = DatabaseManager(db_path)
     conn = db.get_connection()
     conn.execute("UPDATE files SET status = 'ready' WHERE id = ?", (file_id,))
     conn.commit()
+
+    import os
+    os.makedirs(os.path.dirname(service.storage.get_file_path(file_id)), exist_ok=True)
+    with open(service.storage.get_file_path(file_id), 'wb') as f: f.write(b'dummy')
+
     
     # 5 wrong attempts
     for _ in range(5):

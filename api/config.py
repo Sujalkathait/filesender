@@ -82,7 +82,8 @@ def _get_int_env(key: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
-MAX_FILE_SIZE = _get_int_env("MAX_FILE_SIZE", 1 * 1024 * 1024 * 1024)  # 1 GB Max Total Size
+MAX_FILE_SIZE = _get_int_env("MAX_FILE_SIZE", 1 * 1024 * 1024 * 1024)  # 1 GB Max File Size
+MAX_SYSTEM_STORAGE = _get_int_env("MAX_SYSTEM_STORAGE", 1 * 1024 * 1024 * 1024)  # 1 GB Global Storage Limit
 MAX_SYSTEM_USERS = _get_int_env("MAX_SYSTEM_USERS", 20)  # Maximum 20 concurrent users across system
 MAX_FILES_PER_TRANSFER = _get_int_env("MAX_FILES_PER_TRANSFER", 20)  # Maximum 20 files per transfer
 MAX_REFRESHES_PER_SESSION = _get_int_env("MAX_REFRESHES_PER_SESSION", 5)

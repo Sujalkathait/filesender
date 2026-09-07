@@ -23,6 +23,12 @@ GitHub Repository: https://github.com/sujalkathait93-lab/filesender
 
 </div>
 
+## 📖 Technical Explanation
+
+For a deep dive into the underlying architecture, data flow, security models, and the 29-point technical breakdown of this project (ideal for presentations, vivas, and learning), please check the [Technical Explanation README](TECHNICAL_EXPLANATION.md).
+
+---
+
 ## 📌 Overview
 
 **FileShare** is a high-performance, privacy-first web application designed for secure, zero-knowledge file sharing. Built with a stream-and-batch processing pipeline, it allows users to transfer up to 20 files per transfer (up to 1 GB total) safely without loading entire files into memory.

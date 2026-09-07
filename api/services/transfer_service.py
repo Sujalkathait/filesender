@@ -15,7 +15,7 @@ from datetime import timedelta
 
 from api.database import DatabaseManager
 from api.storage import StorageManager
-from api.config import MAX_FILE_SIZE, MAX_SYSTEM_USERS, MAX_FILES_PER_TRANSFER, MAX_REFRESHES_PER_SESSION, MAX_PREVIEWS_PER_FILE
+from api.config import MAX_FILE_SIZE, MAX_SYSTEM_STORAGE, MAX_SYSTEM_USERS, MAX_FILES_PER_TRANSFER, MAX_REFRESHES_PER_SESSION, MAX_PREVIEWS_PER_FILE
 from api.utils import generate_id, generate_owner_token, hash_token, tokens_match, proofs_match, get_utc_now, get_utc_now_iso, is_expired
 from api.errors import ApiError, NotFoundError, GoneError, ConflictError, ForbiddenError, ValidationError
 
@@ -28,6 +28,21 @@ class TransferService:
     def __init__(self, db_manager: DatabaseManager, storage_manager: StorageManager):
         self.db = db_manager
         self.storage = storage_manager
+
+    def _get_total_storage_used(self) -> int:
+        """Calculate total bytes currently stored in the system (files + chunks)."""
+        conn = self.db.get_connection()
+        try:
+            row_files = conn.execute("SELECT SUM(encrypted_size) as total FROM files").fetchone()
+            row_chunks = conn.execute("SELECT SUM(chunk_size) as total FROM chunks").fetchone()
+            total = 0
+            if row_files and row_files["total"]:
+                total += row_files["total"]
+            if row_chunks and row_chunks["total"]:
+                total += row_chunks["total"]
+            return total
+        finally:
+            conn.close()
 
     def _check_system_user_capacity(self, transfer_id: str = None):
         """Limit system to MAX_SYSTEM_USERS (20) concurrent active transfers/users."""
@@ -63,6 +78,15 @@ class TransferService:
 
         transfer_id = None
         self._check_system_user_capacity(transfer_id)
+
+        original_size = form_data["original_size"]
+        total_used = self._get_total_storage_used()
+        if total_used + original_size > MAX_SYSTEM_STORAGE:
+            used_mb = total_used // (1024 * 1024)
+            rem_mb = max(0, (MAX_SYSTEM_STORAGE - total_used) // (1024 * 1024))
+            max_mb = MAX_SYSTEM_STORAGE // (1024 * 1024)
+            max_str = "1 GB" if max_mb == 1024 else f"{max_mb} MB"
+            raise PayloadTooLargeError(f"Upload Failed\nStorage limit exceeded.\nMaximum allowed: {max_str}\nStorage used: {used_mb} MB\nAvailable: {rem_mb} MB")
 
         iv = form_data["iv"]
         salt = form_data["salt"]
@@ -161,6 +185,15 @@ class TransferService:
 
         transfer_id = None
         self._check_system_user_capacity(transfer_id)
+
+        original_size = form_data["original_size"]
+        total_used = self._get_total_storage_used()
+        if total_used + original_size > MAX_SYSTEM_STORAGE:
+            used_mb = total_used // (1024 * 1024)
+            rem_mb = max(0, (MAX_SYSTEM_STORAGE - total_used) // (1024 * 1024))
+            max_mb = MAX_SYSTEM_STORAGE // (1024 * 1024)
+            max_str = "1 GB" if max_mb == 1024 else f"{max_mb} MB"
+            raise PayloadTooLargeError(f"Upload Failed\nStorage limit exceeded.\nMaximum allowed: {max_str}\nStorage used: {used_mb} MB\nAvailable: {rem_mb} MB")
 
         iv = form_data["iv"]
         salt = form_data["salt"]
@@ -641,9 +674,12 @@ class TransferService:
     # ─── Stats ──────────────────────────────────────────────────────────────
 
     def get_stats(self) -> dict:
-        """Public limits only — do not leak live file counts."""
+        """Public limits and system storage stats."""
+        total_used = self._get_total_storage_used()
         return {
             "max_file_size": MAX_FILE_SIZE,
+            "max_system_storage": MAX_SYSTEM_STORAGE,
+            "total_storage_used": total_used,
             "max_refreshes": MAX_REFRESHES_PER_SESSION,
             "max_previews": MAX_PREVIEWS_PER_FILE,
             "server_time": get_utc_now().isoformat()

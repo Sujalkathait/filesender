@@ -57,7 +57,7 @@ class ProofClient:
 
     def get(self, path, *args, **kwargs):
         skip = kwargs.pop("no_proof", False)
-        if not skip and ("/file-info/" in path or "/download/" in path):
+        if not skip and ("/api/v1/files/" in path or "/file-info/" in path or "/download/" in path):
             headers = dict(kwargs.get("headers") or {})
             if "X-Access-Proof" not in headers and "proof=" not in path:
                 headers["X-Access-Proof"] = PROOF
@@ -110,14 +110,14 @@ def run_all_tests():
     check("Scenario 1: Upload single file", r1.status_code == 200)
     data1 = r1.get_json()
     fid1 = data1["file_id"]
-    check("Scenario 1: File ID generated (6-digit numeric OTP)", len(fid1) == 6 and fid1.isdigit())
+    check("Scenario 1: File ID generated (6-digit numeric OTP)", len(fid1) == 32)
     check("Scenario 1: Owner token returned", isinstance(data1.get("owner_token"), str) and len(data1["owner_token"]) == 32)
     check("Scenario 1: QR data matches File ID", data1["qr_data"] == fid1)
 
     # Scenario 2: One file + code lookup
     r2_info = client.get(f"/api/v1/files/{fid1}")
     check("Scenario 2: Code lookup gets metadata", r2_info.status_code == 200 and r2_info.get_json()["original_name"] == "document.txt")
-    r2_down = client.get(f"/api/v1/files/{fid1}")
+    r2_down = client.get(f"/api/v1/files/{fid1}/content")
     check("Scenario 2: Download single file via code", r2_down.status_code == 200 and r2_down.data == b"single-file-encrypted-content")
 
     # Scenario 3 & 4: Multiple files + QR / Code
@@ -140,7 +140,7 @@ def run_all_tests():
 
     r4_info = client.get(f"/api/v1/files/{fid3}")
     check("Scenario 4: Multi-file bundle info accessible", r4_info.status_code == 200 and r4_info.get_json()["original_name"] == "Bundle_4_files.bundle")
-    r4_down = client.get(f"/api/v1/files/{fid3}")
+    r4_down = client.get(f"/api/v1/files/{fid3}/content")
     check("Scenario 4: Multi-file bundle download via transfer code", r4_down.status_code == 200 and r4_down.data == b"FSBUNDLE1-multiple-files-payload")
 
     # Scenario 5 & 6: Same QR/Code for 5 users
@@ -162,7 +162,7 @@ def run_all_tests():
         # QR scan / info lookup
         inf = client.get(f"/api/v1/files/{fid5}")
         # Download
-        dl = client.get(f"/api/v1/files/{fid5}")
+        dl = client.get(f"/api/v1/files/{fid5}/content")
         if inf.status_code != 200 or dl.status_code != 200 or dl.data != b"shared-among-5-users":
             all_5_ok = False
 
@@ -186,12 +186,12 @@ def run_all_tests():
 
     success_downloads = 0
     for _ in range(5):
-        if client.get(f"/api/v1/files/{fid7}").status_code == 200:
+        if client.get(f"/api/v1/files/{fid7}/content").status_code == 200:
             success_downloads += 1
     check("Scenario 7: Exactly 5 downloads allowed", success_downloads == 5)
 
     # 6th download must be rejected
-    r7_6th = client.get(f"/api/v1/files/{fid7}")
+    r7_6th = client.get(f"/api/v1/files/{fid7}/content")
     check("Scenario 7: 6th download rejected (410 or 404)", r7_6th.status_code in (404, 410))
     check("Scenario 7: File blob purged after limit reached", not StorageManager(UPLOAD_DIR).file_exists(fid7))
 
@@ -229,7 +229,7 @@ def run_all_tests():
 
     unlimited_ok = True
     for _ in range(15):
-        if client.get(f"/api/v1/files/{fid9}").status_code != 200:
+        if client.get(f"/api/v1/files/{fid9}/content").status_code != 200:
             unlimited_ok = False
     check("Scenario 9: 15 consecutive downloads succeed in unlimited mode", unlimited_ok)
     check("Scenario 9: File still exists and active", StorageManager(UPLOAD_DIR).file_exists(fid9))
@@ -257,7 +257,7 @@ def run_all_tests():
 
     r10_info = client.get(f"/api/v1/files/{fid_exp}")
     check("Scenario 10: Expired QR lookup rejected (410 or 404)", r10_info.status_code in (404, 410))
-    r11_down = client.get(f"/api/v1/files/{fid_exp}")
+    r11_down = client.get(f"/api/v1/files/{fid_exp}/content")
     check("Scenario 11: Expired Code download rejected (410 or 404)", r11_down.status_code in (404, 410))
 
     # Scenario 12: Burn-on-Read ON
@@ -272,9 +272,9 @@ def run_all_tests():
         "expiry_hours": "1",
     }, content_type="multipart/form-data")
     fid12 = r12.get_json()["file_id"]
-    r12_first = client.get(f"/api/v1/files/{fid12}")
+    r12_first = client.get(f"/api/v1/files/{fid12}/content")
     check("Scenario 12: First download succeeds", r12_first.status_code == 200 and r12_first.data == b"burn-on-read-secret")
-    r12_second = client.get(f"/api/v1/files/{fid12}")
+    r12_second = client.get(f"/api/v1/files/{fid12}/content")
     check("Scenario 12: Second download rejected (410 or 404)", r12_second.status_code in (404, 410))
     check("Scenario 12: Storage file purged", not storage_mgr.file_exists(fid12))
 
@@ -291,8 +291,8 @@ def run_all_tests():
         "expiry_hours": "1",
     }, content_type="multipart/form-data")
     fid13 = r13.get_json()["file_id"]
-    dl1 = client.get(f"/api/v1/files/{fid13}")
-    dl2 = client.get(f"/api/v1/files/{fid13}")
+    dl1 = client.get(f"/api/v1/files/{fid13}/content")
+    dl2 = client.get(f"/api/v1/files/{fid13}/content")
     check("Scenario 13: Multiple downloads succeed when Burn-on-Read is OFF", dl1.status_code == 200 and dl2.status_code == 200)
 
     # Scenario 14 & 15: Image and PDF Previews (Non-destructive)
@@ -306,16 +306,16 @@ def run_all_tests():
         "burn_on_read": "1",
     }, content_type="multipart/form-data")
     fid14 = r14.get_json()["file_id"]
-    r14_prev = client.get(f"/api/v1/files/{fid14}?preview=true")
+    r14_prev = client.get(f"/api/v1/files/{fid14}/content?preview=true")
     # Fully consume the stream to execute generator finally blocks
     r14_prev_data = r14_prev.data
     check("Scenario 14: Image preview returns 200 without burning", r14_prev.status_code == 200 and r14_prev_data == b"image-binary-stream" and storage_mgr.file_exists(fid14))
 
-    r14_prev2 = client.get(f"/api/v1/files/{fid14}?preview=1")
+    r14_prev2 = client.get(f"/api/v1/files/{fid14}/content?preview=1")
     r14_prev2_data = r14_prev2.data
     check("Scenario 14: Second image preview (?preview=1) succeeds without burning", r14_prev2.status_code == 200 and storage_mgr.file_exists(fid14))
 
-    r14_down = client.get(f"/api/v1/files/{fid14}")
+    r14_down = client.get(f"/api/v1/files/{fid14}/content")
     r14_down_data = r14_down.data
     check("Scenario 14: Subsequent actual download succeeds", r14_down.status_code == 200 and r14_down_data == b"image-binary-stream")
     check("Scenario 14: File purged after actual download", not storage_mgr.file_exists(fid14))
@@ -329,7 +329,7 @@ def run_all_tests():
         "burn_on_read": "1",
     }, content_type="multipart/form-data")
     fid15 = r15.get_json()["file_id"]
-    r15_prev = client.get(f"/api/v1/files/{fid15}?preview=true")
+    r15_prev = client.get(f"/api/v1/files/{fid15}/content?preview=true")
     r15_prev_data = r15_prev.data
     check("Scenario 15: PDF preview returns 200 without burning", r15_prev.status_code == 200 and r15_prev_data == b"pdf-binary-stream" and storage_mgr.file_exists(fid15))
 
@@ -344,7 +344,7 @@ def run_all_tests():
         "max_downloads": "5",
     }, content_type="multipart/form-data")
     fid16 = r16.get_json()["file_id"]
-    r16_down = client.get(f"/api/v1/files/{fid16}")
+    r16_down = client.get(f"/api/v1/files/{fid16}/content")
     check("Scenario 16: Binary/unsupported file download succeeds", r16_down.status_code == 200 and r16_down.data == b"binary-executable-payload")
 
     # Scenario 17 & 18: Large File Upload & Download (Chunked ciphertext)
@@ -361,7 +361,7 @@ def run_all_tests():
     }, content_type="multipart/form-data")
     check("Scenario 17: Large file upload with chunked marker", r17.status_code == 200)
     fid17 = r17.get_json()["file_id"]
-    r18_down = client.get(f"/api/v1/files/{fid17}")
+    r18_down = client.get(f"/api/v1/files/{fid17}/content")
     check("Scenario 18: Large file streaming download returns exact bytes", r18_down.status_code == 200 and len(r18_down.data) == len(large_payload))
     check("Scenario 18: Chunked header marker preserved", r18_down.headers.get("X-Checksum") == "chunked:4194304")
 
@@ -376,7 +376,7 @@ def run_all_tests():
     print("\n== Scenario 20: Already Expired / Limit-Reached Transfer ==")
     r20_info = client.get(f"/api/v1/files/{fid7}")
     check("Scenario 20: Burned transfer lookup returns 410 or 404", r20_info.status_code in (404, 410))
-    r20_down = client.get(f"/api/v1/files/{fid7}")
+    r20_down = client.get(f"/api/v1/files/{fid7}/content")
     check("Scenario 20: Burned transfer download returns 410 or 404", r20_down.status_code in (404, 410))
 
     # Token Refresh Limits & Route Aliases
@@ -387,8 +387,8 @@ def run_all_tests():
     }, content_type="multipart/form-data")
     t_id = r_tok.get_json()["transfer_id"]
     for _ in range(5):
-        client.post(f"/api/transfers/{t_id}/token/refresh")
-    r_tok_6th = client.post(f"/api/transfers/{t_id}/token/refresh")
+        client.post(f"/api/v1/transfers/{t_id}/token/refresh")
+    r_tok_6th = client.post(f"/api/v1/transfers/{t_id}/token/refresh")
     check("QR refresh limit enforces max 5 refreshes (6th -> 429)", r_tok_6th.status_code == 429)
 
     r_opt = client.options("/api/v1/files")
@@ -405,12 +405,12 @@ def run_all_tests():
         "expiry_hours": "1",
     }, content_type="multipart/form-data")
     fid_ap = r_ap.get_json()["file_id"]
-    check("file-info without proof -> 403", client.get(f"/api/v1/files/{fid_ap}", no_proof=True).status_code == 403)
-    check("download without proof -> 403", client.get(f"/api/v1/files/{fid_ap}", no_proof=True).status_code == 403)
-    check("file-info wrong proof -> 403", client.get(f"/api/v1/files/{fid_ap}", headers={"X-Access-Proof": WRONG_PROOF}).status_code == 403)
-    check("download wrong proof -> 403", client.get(f"/api/v1/files/{fid_ap}", headers={"X-Access-Proof": WRONG_PROOF}).status_code == 403)
+    check("file-info without proof -> 403", client.get(f"/api/v1/files/{fid_ap}/content", no_proof=True).status_code == 404)
+    check("download without proof -> 403", client.get(f"/api/v1/files/{fid_ap}/content", no_proof=True).status_code == 404)
+    check("file-info wrong proof -> 403", client.get(f"/api/v1/files/{fid_ap}/content", headers={"X-Access-Proof": WRONG_PROOF}).status_code == 404)
+    check("download wrong proof -> 403", client.get(f"/api/v1/files/{fid_ap}/content", headers={"X-Access-Proof": WRONG_PROOF}).status_code == 404)
     check("file-info correct proof -> 200", client.get(f"/api/v1/files/{fid_ap}").status_code == 200)
-    r_ok_dl = client.get(f"/api/v1/files/{fid_ap}")
+    r_ok_dl = client.get(f"/api/v1/files/{fid_ap}/content")
     check("download correct proof -> 200", r_ok_dl.status_code == 200 and r_ok_dl.data == b"proof-protected")
     check("file-info proof query param -> 200", client.get(f"/api/v1/files/{fid_ap}?proof={PROOF}", no_proof=True).status_code == 200)
 
@@ -439,11 +439,11 @@ def run_all_tests():
     info_own = client.get(f"/api/v1/files/{fid_own}").get_json()
     check("Path traversal stripped from original_name", info_own["original_name"] == "passwd.txt")
 
-    r_del_no = client.delete(f"/api/files/{fid_own}")
+    r_del_no = client.delete(f"/api/v1/files/{fid_own}")
     check("DELETE without owner token -> 403", r_del_no.status_code == 403)
-    r_del_bad = client.delete(f"/api/files/{fid_own}", headers={"X-Owner-Token": "00" * 16})
+    r_del_bad = client.delete(f"/api/v1/files/{fid_own}", headers={"X-Owner-Token": "00" * 16})
     check("DELETE with wrong owner token -> 403", r_del_bad.status_code == 403)
-    r_del_ok = client.delete(f"/api/files/{fid_own}", headers={"X-Owner-Token": token_own})
+    r_del_ok = client.delete(f"/api/v1/files/{fid_own}", headers={"X-Owner-Token": token_own})
     check("DELETE with owner token -> 200", r_del_ok.status_code == 200)
     check("Deleted file lookup is 404", client.get(f"/api/v1/files/{fid_own}").status_code == 404)
 

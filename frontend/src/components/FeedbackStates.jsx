@@ -31,7 +31,7 @@ export function ErrorAlert({ message, onRetry, actionText = 'Retry', onAction })
   return (
     <div className="status-message error animate-in" role="alert">
       <AlertTriangle size={18} style={{ flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>{message}</div>
+      <div style={{ flex: 1, minWidth: 0, whiteSpace: 'pre-wrap' }}>{message}</div>
       {handler && (
         <button
           className="btn btn-secondary btn-sm"
