@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, AlertTriangle } from 'lucide-react';
+import { Server, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { api } from '../../services/api';
 import './StorageMeter.css';
 
@@ -27,7 +27,7 @@ export function StorageMeter() {
     return () => clearInterval(intervalId);
   }, []);
 
-  if (loading) return <div className="storage-meter skeleton">Loading storage info...</div>;
+  if (loading) return null; // Don't show skeleton to keep UI clean, it loads fast
   if (error || !stats || stats.max_system_storage == null) return null; // Fallback or hide if unsupported
 
   const used = stats.total_storage_used || 0;
@@ -39,16 +39,21 @@ export function StorageMeter() {
   const totalGb = Math.round(total / (1024 * 1024 * 1024));
   
   const percentUsed = Math.min(100, (used / total) * 100);
-  const isWarning = percentUsed > 90;
+  const isDanger = percentUsed > 95;
+  const isWarning = percentUsed > 80 && !isDanger;
+  
+  const statusClass = isDanger ? 'danger' : isWarning ? 'warning' : '';
   
   return (
-    <div className={`storage-meter ${isWarning ? 'warning' : ''}`}>
+    <div className={`storage-meter ${statusClass}`} title={`${percentUsed.toFixed(1)}% Storage Used`}>
       <div className="storage-header">
         <div className="storage-title">
-          <Server size={16} />
+          <div className="storage-icon-wrapper">
+            <Server size={14} strokeWidth={2.5} />
+          </div>
           <span>System Storage</span>
         </div>
-        <span className="storage-limit-text">Limit = {totalGb} GB</span>
+        <span className="storage-limit-text">{totalGb} GB Limit</span>
       </div>
       
       <div className="storage-progress-bar">
@@ -59,9 +64,19 @@ export function StorageMeter() {
       </div>
       
       <div className="storage-details">
-        <span className="storage-used">Used: {usedMb} MB</span>
-        {isWarning && <AlertTriangle size={14} className="warning-icon" />}
-        <span className="storage-remaining">Remaining: {remainingMb} MB</span>
+        <span className="storage-used">
+          {usedMb > 1024 ? (usedMb / 1024).toFixed(2) + ' GB' : usedMb + ' MB'} used
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {isDanger ? (
+            <AlertOctagon size={14} className="danger-icon" />
+          ) : isWarning ? (
+            <AlertTriangle size={14} className="warning-icon" />
+          ) : null}
+          <span className="storage-remaining">
+            {remainingMb > 1024 ? (remainingMb / 1024).toFixed(2) + ' GB' : remainingMb + ' MB'} remaining
+          </span>
+        </div>
       </div>
     </div>
   );
