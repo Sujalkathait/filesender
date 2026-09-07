@@ -302,3 +302,236 @@ Instead of uploading a standard binary file, the sender can choose to hide their
 33. **What happens when the 1 GB storage is full?** The server blocks any new uploads and returns a "Storage Full" error. The user must wait until existing files expire or are downloaded by receivers to free up space.
 34. **Does the Storage Meter look different for each user?** No, the Storage Meter is exactly the same for everyone. Because it tracks the global backend storage, every user acts as a viewer of the same public "fuel gauge" indicating the overall health and capacity of the server.
 35. **How does the system free up space automatically?** Files permanently self-destruct from the server immediately once downloaded (if 'Burn After Read' is active). Otherwise, they are swept away by the server's background cleanup process once their set time limit expires.
+
+---
+
+## 8. Multi-File Transfer: Bundling, Encryption, and ZIP Download
+
+### Why Multi-File Transfer is a Hard Problem
+
+Naively, you might think: "Just upload 10 files, give 10 codes, receiver downloads 10 files." But this approach has major flaws:
+- **10 separate encryption keys** = 10 separate QR codes the sender must share. Impossible to use.
+- **10 separate HTTP requests** = huge network overhead from repeated TCP handshakes and TLS negotiation.
+- **10 separate database records** = much heavier server load.
+- **Mobile download block**: Mobile browsers silently block simultaneous JavaScript-triggered download requests to prevent malware spam.
+
+FileShare solves all of these with a unified architecture: **one bundle, one key, one QR code, one download.**
+
+---
+
+### Step 1: Sender Side — Packing Files into the FSBUNDLE1 Binary Container
+
+When the sender selects multiple files (or a folder), the frontend runs `packFiles()` from [`bundler.js`](frontend/src/utils/bundler.js) before encryption. This creates a custom, highly-efficient binary container called **FSBUNDLE1**.
+
+#### FSBUNDLE1 Binary Wire Format
+
+The binary layout on disk/network is:
+
+```
+[ Magic Header: 8 bytes "FSBUNDLE1" ]
+[ Manifest Length: 4 bytes (Uint32, little-endian) ]
+[ Manifest JSON: variable length (UTF-8 encoded) ]
+[ File 1 raw bytes ]
+[ File 2 raw bytes ]
+[ File N raw bytes ]
+```
+
+**Component Breakdown:**
+
+| Field | Size | Purpose |
+|---|---|---|
+| Magic Header | 8 bytes (`0x46 0x53 0x42 0x55 0x4e 0x44 0x4c 0x31`) | Unique identifier so the receiver can detect a bundle vs. a plain file |
+| Manifest Length | 4 bytes (Uint32 LE) | How many bytes the JSON manifest occupies |
+| Manifest JSON | Variable | JSON array listing every file: `{ "name": "photo.jpg", "size": 204800, "type": "image/jpeg" }` |
+| File Data | Variable (per file) | Raw binary bytes of each file, concatenated in order |
+
+**Example Manifest JSON:**
+```json
+{
+  "version": 1,
+  "files": [
+    { "name": "vacation.jpg", "size": 2097152, "type": "image/jpeg" },
+    { "name": "report.pdf",   "size": 512000,  "type": "application/pdf" },
+    { "name": "notes.txt",    "size": 1024,    "type": "text/plain" }
+  ]
+}
+```
+
+This is a **self-describing format**: the manifest tells the receiver exactly where each file starts and ends within the binary stream, without needing any external index. This is identical in concept to how ZIP files work internally.
+
+**Single File Optimization:** If only 1 file is selected, `packFiles()` returns it directly without adding the FSBUNDLE1 wrapper. This keeps the format overhead at zero for the common single-file case.
+
+---
+
+### Step 2: Encryption of the Bundle
+
+After packing, the **entire bundle blob is treated as a single opaque binary payload** and passed to `encryptFile()` in [`crypto.js`](frontend/src/crypto.js). The encryption system has no awareness of the bundle structure inside — it simply sees a sequence of bytes to encrypt.
+
+**Memory-Safe Chunked Encryption:**
+
+For large bundles (> 4 MB), the encrypted is done chunk-by-chunk:
+
+```
+Bundle Blob
+  │
+  ├─[Chunk 0: bytes 0 → 4MB]
+  │   → gzip compress
+  │   → AES-256-GCM encrypt with IV₀ (derived from base IV + counter 0)
+  │   → Prepend 4-byte length header
+  │
+  ├─[Chunk 1: bytes 4MB → 8MB]
+  │   → gzip compress
+  │   → AES-256-GCM encrypt with IV₁ (derived from base IV + counter 1)
+  │   → Prepend 4-byte length header
+  │
+  └─[Chunk N...]
+```
+
+This means the entire bundle — including all its files — is encrypted as one atomic unit. A single 6-digit PIN decrypts the entire thing.
+
+---
+
+### Step 3: Server Upload — One File, One Record
+
+The encrypted binary blob (containing all files) is uploaded to the server as a single HTTP multipart request. The server stores it as **one file** in `/tmp` and creates **one database record**. The manifest, file names, and file sizes are invisible to the server — it only sees an encrypted binary blob.
+
+---
+
+### Step 4: Receiver Side — Decryption and Bundle Unpacking
+
+When the receiver enters the 6-digit PIN and clicks Download:
+
+1. **Single HTTP GET:** The receiver's browser downloads the single encrypted blob from the server.
+2. **AES-256-GCM Decryption (chunk by chunk):** The blob is decrypted in 4 MB chunks, yielding the full FSBUNDLE1 binary.
+3. **Magic Header Check:** `isBundleData()` reads the first 8 bytes and checks for `FSBUNDLE1`. If found, it is a multi-file bundle.
+4. **Manifest Parsing:** The manifest JSON is decoded. It tells the browser: "This bundle contains 3 files. File 1 is `vacation.jpg` (2 MB). File 2 is `report.pdf` (512 KB). File 3 is `notes.txt` (1 KB)."
+5. **Byte Slicing:** Using the byte offsets derived from the sizes in the manifest, `unpackFiles()` slices the decrypted binary into individual `Uint8Array` segments for each file. No file is lost or corrupted, because the manifest is 100% accurate.
+6. **Blob Creation:** Each `Uint8Array` is wrapped in a `Blob` with the correct MIME type (e.g., `image/jpeg`).
+
+---
+
+### Step 5: The Mobile Download Problem and ZIP Solution
+
+**The Core Problem:**
+
+The naive approach was to fire off N separate JavaScript download requests in a loop:
+```js
+// OLD BAD CODE — Broken on mobile!
+files.forEach((file, index) => {
+  setTimeout(() => triggerDownload(file), index * 200);
+});
+```
+
+iOS Safari and Android Chrome **aggressively block multiple automatic downloads** triggered by JavaScript. They allow only the very first download and silently cancel the rest to prevent malware from dumping hundreds of files onto a user's phone. The user would get only the first file and have no idea the rest were missing.
+
+**The Fix — Client-Side ZIP Generation with `fflate`:**
+
+Instead of fighting the mobile browser's security policy, FileShare now generates a single standard `.zip` archive locally in the receiver's browser memory using `fflate` (a Wasm-free, 8 kB pure JavaScript compression engine).
+
+```js
+// NEW CORRECT CODE — Works on all devices!
+import { zip } from 'fflate';
+
+const zipObj = {};
+files.forEach(file => {
+  zipObj[file.name] = file.data; // Uint8Array for each file
+});
+
+zip(zipObj, { level: 0 }, (err, zippedData) => {
+  // Single download of one .zip file — never blocked by mobile!
+  triggerDownload(new Blob([zippedData], { type: 'application/zip' }),
+    'FileShare_Bundle.zip');
+});
+```
+
+**Why `level: 0` (Store Only)?**
+
+Setting the ZIP compression level to `0` means `fflate` simply packages the files into the ZIP container format without trying to re-compress them. This is the optimal choice because:
+- The files were already gzip-compressed during the upload encryption pipeline on the sender side. Trying to compress already-compressed data wastes CPU and may even make the ZIP larger.
+- ZIP generation is now **near-instantaneous** — just a metadata header + raw byte copy, even for hundreds of megabytes.
+- No risk of freezing the UI or draining the phone's battery.
+
+**ZIP Format vs FSBUNDLE1:**
+
+| Property | FSBUNDLE1 (internal) | ZIP (output) |
+|---|---|---|
+| Purpose | Transport container for encryption | Final user-facing archive |
+| Standard | Custom proprietary | Industry standard (RFC 1952) |
+| Readability | Only FileShare can open it | Every OS (Windows, macOS, Android, iOS) can open it natively |
+| Compression | gzip per chunk (in encryption layer) | Store Only (level: 0), already compressed |
+| Created at | Sender's browser | Receiver's browser |
+
+---
+
+### Full Multi-File Transfer Flow (End-to-End)
+
+```
+SENDER BROWSER                          SERVER              RECEIVER BROWSER
+─────────────────                       ──────              ────────────────
+Select 3 files
+    │
+    ▼
+packFiles() → FSBUNDLE1 binary
+    │ [magic][manifest][file1][file2][file3]
+    ▼
+encryptFile()
+    │ gzip + AES-256-GCM each 4MB chunk
+    │ Single encrypted blob
+    ▼
+Single HTTP PUT ─────────────────────► /tmp/abc.encrypted
+Single DB INSERT                       DB: { id, iv, salt, wrapped_key }
+    │
+    ▼
+Generate 6-digit PIN + QR Code
+Share with receiver
+                                                    ▼
+                                            Enter 6-digit PIN
+                                                    │
+                                            Single HTTP GET ◄──── /tmp/abc.encrypted
+                                                    │
+                                            decryptFile()
+                                            │ AES-256-GCM decrypt each chunk
+                                            │ gunzip decompress
+                                            │ → FSBUNDLE1 binary (reconstructed)
+                                                    │
+                                            unpackFiles()
+                                            │ Check magic header ✓
+                                            │ Parse manifest JSON
+                                            │ Slice bytes → file1, file2, file3
+                                                    │
+                                            downloadAsZip()      [fflate]
+                                            │ Packs Uint8Arrays into ZIP
+                                            │ Single download trigger
+                                                    │
+                                                    ▼
+                                            📦 FileShare_Bundle_3_files.zip
+                                            (User extracts natively on any device)
+```
+
+---
+
+### Q&A: Multi-File Bundling
+
+**Q36: What is FSBUNDLE1?**
+It is FileShare's custom binary container format for multi-file transfers. It uses a magic header (`FSBUNDLE1`) followed by a JSON manifest (which lists every file's name, size, and type) followed by the raw bytes of all files concatenated together.
+
+**Q37: Why not just use a ZIP file to pack the files before encryption?**
+We could, but it would be wasteful. The encryption pipeline already applies gzip compression per chunk. Zipping the files first and then gzip-compressing them again during encryption would just waste CPU time. FSBUNDLE1 skips the compression step and lets the encryption layer handle it.
+
+**Q38: How does the receiver know where one file ends and the next begins in the binary blob?**
+The manifest JSON at the start of the bundle contains the exact `size` in bytes for each file. The unpacker reads `size` bytes at a time, keeping a running byte offset. It never reads more or less than what the manifest says.
+
+**Q39: What happens if the manifest gets corrupted during transfer?**
+AES-256-GCM provides an authentication tag that covers every byte of the encrypted blob including the manifest. If even 1 bit is flipped, the `crypto.subtle.decrypt()` call throws an `OperationError` and the browser rejects the entire decryption. No partial or corrupted data is ever presented to the user.
+
+**Q40: Why does downloading multiple files on mobile fail without the ZIP?**
+iOS and Android browsers block JavaScript from triggering multiple simultaneous automatic downloads. This is a security policy to prevent malicious sites from dumping ransomware or spam files. The fix is to deliver all files as a single ZIP, which the phone can then natively extract.
+
+**Q41: Does the ZIP generation happen on the server?**
+No. The ZIP is generated entirely in the receiver's browser using the `fflate` JavaScript library. The server is completely uninvolved and never sees the file contents.
+
+**Q42: What is fflate?**
+`fflate` is a high-performance, pure-JavaScript compression library (8 kB, no Wasm). It implements the DEFLATE algorithm (the same algorithm used by ZIP and gzip). It runs completely in the browser and never sends data to any external server.
+
+**Q43: Why is the ZIP download called `FileShare_Bundle_N_files.zip`?**
+We auto-generate this name so the receiver immediately understands they received a multi-file transfer. They can extract it to get back their original files with their original names and folder structure preserved.
