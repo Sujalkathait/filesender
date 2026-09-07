@@ -25,7 +25,7 @@ GitHub Repository: https://github.com/sujalkathait93-lab/filesender
 
 ## 📖 Technical Explanation
 
-For a deep dive into the underlying architecture, data flow, security models, and the 35-point technical breakdown of this project (ideal for presentations, vivas, and learning), please check the [Technical Explanation README](TECHNICAL_EXPLANATION.md).
+For a deep dive into the underlying architecture, data flow, security models, and the 43-point technical breakdown of this project (ideal for presentations, vivas, and learning), please check the [Technical Explanation README](TECHNICAL_EXPLANATION.md).
 
 ---
 
