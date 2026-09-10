@@ -1,14 +1,13 @@
 import React from 'react';
-import { Skeleton } from './ui/skeleton';
 import './Skeletons.css';
 
 /**
- * Basic Shimmer Line / Block Component using Shadcn Skeleton
+ * Basic Shimmer Line / Block Component
  */
-export function SkeletonBlock({ width = '100%', height = '1rem', borderRadius = '6px', style = {}, className = "" }) {
+export function SkeletonBlock({ width = '100%', height = '1rem', borderRadius = '6px', style = {} }) {
   return (
-    <Skeleton
-      className={className}
+    <div
+      className="skeleton-shimmer skeleton-block"
       style={{ width, height, borderRadius, ...style }}
       aria-hidden="true"
     />

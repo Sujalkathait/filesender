@@ -1,30 +1,23 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, Info, CheckCircle2, Shield, Lock } from 'lucide-react';
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from './ui/empty';
-import { Button } from './ui/button';
-import { Progress } from './ui/progress';
 
 /**
  * Clean Empty State with Action Button
  */
 export function EmptyState({ icon: Icon = Info, title, description, actionText, onAction }) {
   return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia>
-          <Icon size={24} />
-        </EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
-        {description && <EmptyDescription>{description}</EmptyDescription>}
-      </EmptyHeader>
+    <div className="empty-state-card animate-in" role="region" aria-label={title}>
+      <div className="empty-state-icon">
+        <Icon size={32} />
+      </div>
+      <h3 className="empty-state-title">{title}</h3>
+      {description && <p className="empty-state-desc">{description}</p>}
       {actionText && onAction && (
-        <EmptyContent>
-          <Button variant="secondary" onClick={onAction}>
-            {actionText}
-          </Button>
-        </EmptyContent>
+        <button className="btn btn-secondary empty-state-btn" onClick={onAction}>
+          {actionText}
+        </button>
       )}
-    </Empty>
+    </div>
   );
 }
 
@@ -63,17 +56,22 @@ export function MeasurableProgressBar({ stage = 'Processing', percent = 0, statu
 
   return (
     <div
-      className="w-full flex flex-col gap-2"
+      className="progress-container"
       role="progressbar"
       aria-valuenow={clampedPercent}
       aria-valuemin="0"
       aria-valuemax="100"
       aria-label={statusMessage || `${stage}... ${clampedPercent}%`}
     >
-      <Progress value={clampedPercent} className="h-2" />
-      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+      <div className="progress-bar">
+        <div
+          className="progress-fill green-fill"
+          style={{ '--progress-width': `${clampedPercent}%` }}
+        />
+      </div>
+      <div className="progress-text">
         <span>{statusMessage || `${stage}...`}</span>
-        <span>{clampedPercent}%</span>
+        <span className="progress-percent">{clampedPercent}%</span>
       </div>
     </div>
   );

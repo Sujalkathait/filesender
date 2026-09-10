@@ -1,7 +1,6 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { formatBytes } from '../../utils/format';
-import { Progress } from '../ui/progress';
 
 /**
  * TransferProgress Component
@@ -29,8 +28,11 @@ export function TransferProgress({
         <span className="smart-progress-percent">{progress.percent}%</span>
       </div>
 
-      <div className="py-2">
-        <Progress value={progress.percent} className="h-2" />
+      <div className="smart-progress-bar-wrap">
+        <div
+          className="smart-progress-bar-fill"
+          style={{ width: `${progress.percent}%` }}
+        />
       </div>
 
       <div className="smart-progress-metrics">

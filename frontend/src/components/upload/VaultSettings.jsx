@@ -1,7 +1,5 @@
 import React from 'react';
 import { Flame, Image as ImageIcon, Radio, Clock, HelpCircle, ShieldCheck, Info } from 'lucide-react';
-import { Checkbox } from '../ui/checkbox';
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle, FieldGroup } from '../ui/field';
 
 const EXPIRY_PRESETS = [
   { value: 15, label: '15s', fullLabel: '15 seconds', hint: 'Ultra fast temporary transfer' },
@@ -89,50 +87,82 @@ export function VaultSettings({
       </div>
 
       {/* Option 2: Image Steganography */}
-      <Field orientation="horizontal" data-disabled={isTransferring} className="p-4 rounded-xl border bg-card">
-        <Checkbox 
-          id="steganography-checkbox" 
-          checked={useSteganography} 
-          disabled={isTransferring}
-          onCheckedChange={(checked) => setUseSteganography(checked)}
-          className="mt-1"
-        />
-        <FieldContent className="flex-1 cursor-pointer" onClick={() => !isTransferring && setUseSteganography(!useSteganography)}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-              <ImageIcon size={16} />
+      <div
+        className={`vault-option-card ${useSteganography ? 'active' : ''}`}
+        onClick={() => !isTransferring && setUseSteganography(!useSteganography)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !isTransferring && setUseSteganography(!useSteganography)}
+        aria-expanded={useSteganography}
+        style={{ marginTop: 10 }}
+      >
+        <div className="option-card__content">
+          <div className="option-card__copy">
+            <div className="option-card__icon option-card__icon--success">
+              <ImageIcon size={18} />
             </div>
-            <FieldLabel htmlFor="steganography-checkbox" className="text-base cursor-pointer">Steganography Image Vault</FieldLabel>
-            <span className="badge badge-emerald text-[10px]">STEALTH &lt;10MB</span>
+            <div>
+              <div className="option-card__title-row">
+                <strong className="option-card__title">Steganography Image Vault</strong>
+                <span className="badge badge-emerald">STEALTH &lt;10MB</span>
+              </div>
+              <span className="option-card__description">
+                Conceals encrypted payload bytes inside standard PNG pixels to bypass inspection filters.
+              </span>
+            </div>
           </div>
-          <FieldDescription>
-            Conceals encrypted payload bytes inside standard PNG pixels to bypass inspection filters.
-          </FieldDescription>
-        </FieldContent>
-      </Field>
+          <input
+            type="checkbox"
+            checked={useSteganography}
+            disabled={isTransferring}
+            onChange={(e) => {
+              e.stopPropagation();
+              setUseSteganography(e.target.checked);
+            }}
+            className="option-checkbox"
+            aria-label="Steganography mode"
+          />
+        </div>
+      </div>
 
       {/* Option 3: Direct P2P */}
-      <Field orientation="horizontal" data-disabled={isTransferring} className="p-4 rounded-xl border bg-card mt-3">
-        <Checkbox 
-          id="p2p-checkbox" 
-          checked={useP2P} 
-          disabled={isTransferring}
-          onCheckedChange={(checked) => setUseP2P(checked)}
-          className="mt-1"
-        />
-        <FieldContent className="flex-1 cursor-pointer" onClick={() => !isTransferring && setUseP2P(!useP2P)}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-              <Radio size={16} />
+      <div
+        className={`vault-option-card ${useP2P ? 'active' : ''}`}
+        onClick={() => !isTransferring && setUseP2P(!useP2P)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !isTransferring && setUseP2P(!useP2P)}
+        aria-expanded={useP2P}
+        style={{ marginTop: 10 }}
+      >
+        <div className="option-card__content">
+          <div className="option-card__copy">
+            <div className="option-card__icon option-card__icon--primary">
+              <Radio size={18} />
             </div>
-            <FieldLabel htmlFor="p2p-checkbox" className="text-base cursor-pointer">Direct P2P Transfer (WebRTC)</FieldLabel>
-            <span className="badge badge-primary text-[10px]">ZERO SERVER DISK</span>
+            <div>
+              <div className="option-card__title-row">
+                <strong className="option-card__title">Direct P2P Transfer (WebRTC)</strong>
+                <span className="badge badge-primary">ZERO SERVER DISK</span>
+              </div>
+              <span className="option-card__description">
+                Streams directly peer-to-peer between devices without storing files on intermediary servers.
+              </span>
+            </div>
           </div>
-          <FieldDescription>
-            Streams directly peer-to-peer between devices without storing files on intermediary servers.
-          </FieldDescription>
-        </FieldContent>
-      </Field>
+          <input
+            type="checkbox"
+            checked={useP2P}
+            disabled={isTransferring}
+            onChange={(e) => {
+              e.stopPropagation();
+              setUseP2P(e.target.checked);
+            }}
+            className="option-checkbox"
+            aria-label="Direct P2P transfer"
+          />
+        </div>
+      </div>
 
       {/* ── CODE EXPIRY COUNTDOWN SELECTION (15s to 3 min) ── */}
       <div className="expiry-selection-box" style={{
