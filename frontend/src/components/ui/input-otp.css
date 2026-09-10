@@ -1,0 +1,70 @@
+.input-otp-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.input-otp-group {
+  display: flex;
+  align-items: center;
+}
+
+.input-otp-slot {
+  position: relative;
+  display: flex;
+  height: 4rem;
+  width: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-y: 1px solid var(--border-strong);
+  border-r: 1px solid var(--border-strong);
+  font-size: 1.5rem;
+  font-weight: 600;
+  transition: var(--transition-fast);
+  background-color: var(--bg-app);
+  color: var(--fg-default);
+}
+
+.input-otp-slot:first-child {
+  border-left: 1px solid var(--border-strong);
+  border-top-left-radius: var(--radius-md);
+  border-bottom-left-radius: var(--radius-md);
+}
+
+.input-otp-slot:last-child {
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}
+
+.input-otp-slot.is-active {
+  z-index: 10;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+  outline: none;
+}
+
+.input-otp-caret {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-otp-caret-blink {
+  height: 50%;
+  width: 2px;
+  background-color: var(--fg-default);
+  animation: input-otp-caret-blink 1s step-end infinite;
+}
+
+@keyframes input-otp-caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Specific styling for CodeSearchInput wrapper if needed */
+.download-input .input-otp-container {
+  margin: 0 auto;
+}

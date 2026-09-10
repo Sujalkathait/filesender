@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ─────────────────────────────────────────────────────────────────────────────
    FileShare - Native Professional Design System (Signal / Linear / Arc inspired)
    Grayscale Neutral Palette + Single Primary Accent (Electric Blue #0066FF)

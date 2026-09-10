@@ -35,6 +35,9 @@ export const Footer = memo(function Footer({ onScrollToSection }) {
           </Link>
         </div>
       </div>
+      <div className="footer-credits" style={{ textAlign: 'center', marginTop: '2rem', padding: '1rem', borderTop: '1px solid var(--border)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+        Built by Sujal Kathait
+      </div>
     </footer>
   );
 });

@@ -1,6 +1,8 @@
 import React from 'react';
 import { formatBytes } from '../../utils/format';
 import { MAX_TOTAL_TRANSFER_SIZE } from '../../utils/fileValidator';
+import { Progress } from '../ui/progress';
+import { MAX_TOTAL_TRANSFER_SIZE } from '../../utils/fileValidator';
 
 /**
  * CapacityBar Component
@@ -13,10 +15,9 @@ export function CapacityBar({ totalSelectedSize, isOverLimit }) {
         <span>Selected: {formatBytes(totalSelectedSize)}</span>
         <span>1 GB / File Max</span>
       </div>
-      <progress
-        className={`capacity-progress ${isOverLimit ? 'capacity-progress--error' : ''}`}
-        value={Math.min(totalSelectedSize, MAX_TOTAL_TRANSFER_SIZE)}
-        max={MAX_TOTAL_TRANSFER_SIZE}
+      <Progress
+        className={`mt-2 ${isOverLimit ? '[&>div]:bg-red-500' : ''}`}
+        value={Math.min(totalSelectedSize, MAX_TOTAL_TRANSFER_SIZE) / MAX_TOTAL_TRANSFER_SIZE * 100}
         aria-label="Selected file size"
       />
     </div>

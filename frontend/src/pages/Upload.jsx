@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, ArrowLeft, Loader2, Lock, Trash2, History } from 'lucide-react';
+import { Upload, ArrowLeft, Lock, Trash2, History } from 'lucide-react';
 import { copyToClipboard } from '../crypto';
 import { TransferStateMachine, TransferState } from '../stateMachine';
 import { detectFileType } from '../utils/fileType';
@@ -21,6 +21,9 @@ import { FeatureGuideModal } from '../components/upload/FeatureGuideModal';
 import { ShareResultCard } from '../components/upload/ShareResultCard';
 import { SenderHistoryDashboard } from '../components/upload/SenderHistoryDashboard';
 import { QRCodeModal } from '../components/upload/QRCodeModal';
+import { Button } from '../components/ui/button';
+import { Spinner } from '../components/ui/spinner';
+import { EncryptedText } from '../components/ui/encrypted-text';
 
 /**
  * Upload Page Orchestrator Component
@@ -226,12 +229,20 @@ function UploadPage() {
 
   return (
     <div className="page-container animate-in">
-      <button className="btn btn-secondary btn-sm back-btn" onClick={() => navigate('/')}>
-        <ArrowLeft size={15} /> Back to Home
-      </button>
+      <Button variant="secondary" size="sm" className="back-btn" onClick={() => navigate('/')}>
+        <ArrowLeft size={15} className="mr-2" /> Back to Home
+      </Button>
 
       <div className="page-header">
-        <h2><Upload size={22} /> Send Files</h2>
+        <h2 className="flex items-center gap-2">
+          <Upload size={22} /> 
+          <EncryptedText 
+            text="Send Files" 
+            encryptedClassName="text-neutral-500"
+            revealedClassName="text-neutral-900 dark:text-white"
+            revealDelayMs={50}
+          />
+        </h2>
         <p>Drop your file(s) below. Automatically analyzed and protected with zero-knowledge browser encryption.</p>
       </div>
 
@@ -283,13 +294,14 @@ function UploadPage() {
                     </span>
                   )}
                 </div>
-                <button
-                  className="btn btn-secondary btn-sm"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={handleClearAll}
                   disabled={isTransferring}
                 >
-                  <Trash2 size={13} /> Clear All
-                </button>
+                  <Trash2 size={13} className="mr-2" /> Clear All
+                </Button>
               </div>
 
               {/* Single File Card */}
@@ -348,22 +360,23 @@ function UploadPage() {
               />
 
               <div style={{ marginTop: 20 }}>
-                <button
+                <Button
                   onClick={openConfirmation}
                   disabled={isTransferring || isOverLimit || files.length === 0}
                   aria-busy={isTransferring}
-                  className="btn btn-primary btn-lg full-width"
+                  size="lg"
+                  className="w-full"
                 >
                   {isTransferring ? (
                     <>
-                      <Loader2 size={18} className="spin" /> Encrypting &amp; Uploading...
+                      <Spinner size={18} className="mr-2" /> Please Wait
                     </>
                   ) : (
                     <>
-                      <Lock size={18} /> {files.length > 1 ? `Send All (${files.length} files)` : 'Send File'}
+                      <Lock size={18} className="mr-2" /> {files.length > 1 ? `Send All (${files.length} files)` : 'Send File'}
                     </>
                   )}
-                </button>
+                </Button>
               </div>
             </div>
           )}

@@ -6,6 +6,9 @@ import {
 import { formatBytes } from '../../utils/format';
 import { MeasurableProgressBar } from '../FeedbackStates';
 import { FileCategoryIcon } from '../common/FileCategoryIcon';
+import { Button } from '../ui/button';
+import { Spinner } from '../ui/spinner';
+import { Progress } from '../ui/progress';
 
 /**
  * DownloadFileCard Component
@@ -148,48 +151,58 @@ export function DownloadFileCard({
         </div>
       )}
 
-      {/* Progress feedback while decrypting / downloading */}
+      {/* Progress feedback while decrypting / downloading matching Image 1 */}
       {progress && isDecrypting && (
-        <div style={{ marginBottom: 16 }}>
-          <MeasurableProgressBar
-            stage={progress.stage}
-            percent={progress.percent}
-            statusMessage={statusMessage}
-          />
+        <div className="w-full rounded-xl border border-neutral-200 bg-white p-4 shadow-sm flex flex-col gap-4 mb-4 dark:border-neutral-800 dark:bg-black">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <Spinner size={22} className="text-neutral-900 dark:text-neutral-100" />
+              <div className="flex flex-col">
+                <span className="text-base font-medium text-neutral-900 dark:text-neutral-100">Downloading...</span>
+                <span className="text-sm text-neutral-500 dark:text-neutral-400">
+                  {formatBytes(progress.transferredBytes || 0)} / {formatBytes(progress.totalBytes || fileInfo.original_size)}
+                </span>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" className="h-8">Cancel</Button>
+          </div>
+          <Progress value={progress.percent} className="h-2 bg-neutral-100 dark:bg-neutral-800 [&>div]:bg-neutral-900 dark:[&>div]:bg-neutral-100" />
         </div>
       )}
 
       {!isBurned && (
         <div className="download-actions">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="lg"
             onClick={() => onExecuteDownload(false, onPreviewReady)}
             disabled={isDecrypting}
-            className="btn btn-secondary btn-lg"
             title="Inspect files in browser without saving to disk"
             aria-label="Preview files in browser"
           >
-            {isDecrypting ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
+            {isDecrypting ? <Spinner size={16} className="mr-2" /> : <Eye size={16} className="mr-2" />}
             <span>Preview Files</span>
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="default"
+            size="lg"
             onClick={() => onExecuteDownload(true)}
             disabled={isDecrypting}
             aria-busy={isDecrypting}
-            className="btn btn-primary btn-lg"
             aria-label="Save and download file"
           >
             {isDecrypting ? (
               <>
-                <Loader2 size={16} className="spin" /> Decrypting...
+                <Spinner size={16} className="mr-2" /> Decrypting...
               </>
             ) : (
               <>
-                <Download size={16} /> Save &amp; Download
+                <Download size={16} className="mr-2" /> Save &amp; Download
               </>
             )}
-          </button>
+          </Button>
         </div>
       )}
     </div>

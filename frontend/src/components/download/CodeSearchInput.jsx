@@ -1,5 +1,8 @@
 import React from 'react';
-import { Copy, Key, Loader2 } from 'lucide-react';
+import { Copy, Key } from 'lucide-react';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '../ui/input-otp';
+import { Button } from '../ui/button';
+import { Spinner } from '../ui/spinner';
 
 /**
  * CodeSearchInput Component
@@ -14,38 +17,41 @@ export function CodeSearchInput({
   isDecrypting
 }) {
   return (
-    <div className="download-input" role="search">
-      <input
-        type="text"
-        placeholder="Enter 6-Digit Transfer Code (e.g. 839201)"
-        value={codeInput}
-        onChange={(e) => onChangeCodeInput(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && onSearchCode()}
-        inputMode="text"
-        autoCapitalize="characters"
-        autoCorrect="off"
-        autoComplete="off"
-        spellCheck="false"
-        data-lpignore="true"
-        data-form-type="other"
-        maxLength={256}
-        disabled={isLoading || isDecrypting}
-        aria-label="Enter 6-Digit Transfer Code or URL"
-      />
-      <div className="download-input-actions">
-        <button
+    <div className="download-input" role="search" style={{ flexDirection: 'column', gap: '24px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+        <InputOTP 
+          maxLength={6} 
+          value={codeInput.slice(0, 6)} 
+          onChange={(val) => onChangeCodeInput(val.toUpperCase())}
+          onComplete={onSearchCode}
+          disabled={isLoading || isDecrypting}
+        >
+          <InputOTPGroup>
+            <InputOTPSlot index={0} />
+            <InputOTPSlot index={1} />
+            <InputOTPSlot index={2} />
+            <InputOTPSlot index={3} />
+            <InputOTPSlot index={4} />
+            <InputOTPSlot index={5} />
+          </InputOTPGroup>
+        </InputOTP>
+      </div>
+      <div className="download-input-actions" style={{ display: 'flex', gap: '8px' }}>
+        <Button
           type="button"
-          className="btn btn-secondary btn-sm"
+          variant="secondary"
+          size="sm"
           onClick={onPasteClipboard}
           title="Paste transfer code from clipboard"
           disabled={isLoading || isDecrypting}
           aria-label="Paste from clipboard"
         >
-          <Copy size={14} /> Paste
-        </button>
-        <button
+          <Copy size={14} className="mr-2" /> Paste
+        </Button>
+        <Button
           type="button"
-          className="btn btn-primary btn-sm"
+          variant="default"
+          size="sm"
           onClick={() => onSearchCode()}
           disabled={isLoading || isDecrypting || !codeInput.trim()}
           aria-busy={isLoading}
@@ -53,14 +59,14 @@ export function CodeSearchInput({
         >
           {isLoading ? (
             <>
-              <Loader2 size={15} className="spin" /> Connecting...
+              <Spinner size={15} className="mr-2" /> Connecting...
             </>
           ) : (
             <>
-              <Key size={15} /> Connect &amp; Receive
+              <Key size={15} className="mr-2" /> Connect &amp; Receive
             </>
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );
