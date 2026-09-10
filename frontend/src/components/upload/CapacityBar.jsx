@@ -2,7 +2,6 @@ import React from 'react';
 import { formatBytes } from '../../utils/format';
 import { MAX_TOTAL_TRANSFER_SIZE } from '../../utils/fileValidator';
 import { Progress } from '../ui/progress';
-import { MAX_TOTAL_TRANSFER_SIZE } from '../../utils/fileValidator';
 
 /**
  * CapacityBar Component
