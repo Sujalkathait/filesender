@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    FileShare - Native Professional Design System (Signal / Linear / Arc inspired)
@@ -826,6 +824,203 @@ button, a, input, select, textarea {
 
 .file-input {
   display: none;
+}
+
+/* ─── FileUpload Component (Matching User Image 3 Design) ───────────────── */
+.file-upload-wrapper {
+  width: 100%;
+  margin-bottom: var(--space-6);
+}
+
+.file-upload-section-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--fg-default);
+  margin-bottom: var(--space-2);
+}
+
+.file-upload-section-label .required-star {
+  color: var(--danger, #ef4444);
+}
+
+.file-upload-box {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 20px;
+  border: 1.5px dashed var(--border-strong, #cbd5e1);
+  border-radius: var(--radius-xl, 12px);
+  background-color: var(--bg-surface, #f9fafb);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.file-upload-box:hover,
+.file-upload-box.is-dragging {
+  border-color: var(--accent, #0066ff);
+  background-color: var(--accent-subtle, #eff6ff);
+}
+
+.file-upload-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background-color: var(--bg-app, #ffffff);
+  border: 1px solid var(--border-default, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted, #64748b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  margin-bottom: var(--space-3, 12px);
+  transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.file-upload-box:hover .file-upload-icon-circle,
+.file-upload-box.is-dragging .file-upload-icon-circle {
+  transform: translateY(-2px);
+  border-color: var(--accent-border, #bfdbfe);
+  color: var(--accent, #0066ff);
+}
+
+.file-upload-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--fg-default, #09090b);
+  margin: 0 0 4px 0;
+  line-height: 1.4;
+}
+
+.file-upload-subtitle {
+  font-size: 0.85rem;
+  color: var(--fg-muted, #64748b);
+  margin: 0 0 18px 0;
+  line-height: 1.4;
+}
+
+.file-upload-select-btn {
+  background-color: var(--bg-app, #ffffff);
+  color: var(--fg-default, #09090b);
+  border: 1px solid var(--border-default, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 8px 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.file-upload-select-btn:hover {
+  background-color: var(--bg-surface-elevated, #f3f4f6);
+  border-color: var(--border-strong, #cbd5e1);
+  transform: translateY(-1px);
+}
+
+/* ─── Please Wait Button (Matching User Image 2 Design) ──────────────────── */
+.btn-please-wait {
+  background-color: #52525b !important;
+  border-color: #52525b !important;
+  color: #ffffff !important;
+  cursor: wait !important;
+  opacity: 0.95;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* ─── Download Progress Card (Matching User Image 1 Design) ───────────────── */
+.download-progress-card {
+  width: 100%;
+  border-radius: var(--radius-xl, 12px);
+  border: 1px solid var(--border-default, #e2e8f0);
+  background-color: var(--bg-app, #ffffff);
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: var(--space-4, 16px);
+  box-sizing: border-box;
+}
+
+.download-progress-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.download-progress-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.download-progress-spinner {
+  color: var(--fg-default, #09090b);
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+.download-progress-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.download-progress-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--fg-default, #09090b);
+  line-height: 1.3;
+}
+
+.download-progress-bytes {
+  font-size: 0.8125rem;
+  color: var(--fg-muted, #64748b);
+  line-height: 1.3;
+}
+
+.download-progress-cancel-btn {
+  background-color: var(--bg-app, #ffffff);
+  border: 1px solid var(--border-default, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 4px 14px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--fg-default, #09090b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.download-progress-cancel-btn:hover {
+  background-color: var(--bg-surface-elevated, #f3f4f6);
+  border-color: var(--border-strong, #cbd5e1);
+}
+
+.download-progress-track {
+  width: 100%;
+  height: 6px;
+  background-color: var(--bg-subtle, #f3f4f6);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.download-progress-fill {
+  height: 100%;
+  background-color: var(--fg-default, #09090b);
+  border-radius: 9999px;
+  transition: width 0.2s ease;
 }
 
 /* ─── Selected File Management Card & List ───────────────────────────────── */

@@ -2,39 +2,57 @@
 
 import React, { useRef, useState } from "react";
 import { Upload } from "lucide-react";
-import { Button } from "./button";
 import { cn } from "../../lib/utils";
 
 export const FileUpload = ({
   onChange,
+  onFileSelect,
   className,
   title = "Upload required document",
   subtitle = "PDF, DOC, DOCX (max 10MB)",
-  buttonText = "Select Document"
+  buttonText = "Select Document",
+  sectionLabel = "Upload Document",
+  fileInputRef: externalFileInputRef,
+  supportsMultiple = true,
+  isDragging: externalIsDragging,
+  onDragOver: externalOnDragOver,
+  onDragLeave: externalOnDragLeave,
+  onDrop: externalOnDrop,
 }) => {
-  const fileInputRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const internalFileInputRef = useRef(null);
+  const fileInputRef = externalFileInputRef || internalFileInputRef;
+  const [localIsDragging, setLocalIsDragging] = useState(false);
+  const isDragging = externalIsDragging !== undefined ? externalIsDragging : localIsDragging;
 
   const handleFileChange = (e) => {
+    if (onFileSelect) {
+      onFileSelect(e);
+    }
     const files = Array.from(e.target.files || []);
     if (onChange) {
       onChange(files);
     }
   };
 
-  const onDragOver = (e) => {
+  const handleDragOver = (e) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (externalOnDragOver) externalOnDragOver(e);
+    setLocalIsDragging(true);
   };
 
-  const onDragLeave = (e) => {
+  const handleDragLeave = (e) => {
     e.preventDefault();
-    setIsDragging(false);
+    if (externalOnDragLeave) externalOnDragLeave(e);
+    setLocalIsDragging(false);
   };
 
-  const onDrop = (e) => {
+  const handleDrop = (e) => {
     e.preventDefault();
-    setIsDragging(false);
+    if (externalOnDrop) externalOnDrop(e);
+    setLocalIsDragging(false);
+    if (onFileSelect) {
+      onFileSelect(e);
+    }
     const files = Array.from(e.dataTransfer.files || []);
     if (onChange) {
       onChange(files);
@@ -42,44 +60,59 @@ export const FileUpload = ({
   };
 
   return (
-    <div className={cn("w-full flex flex-col items-center", className)}>
-      <div
-        className={cn(
-          "w-full flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition-colors",
-          isDragging
-            ? "border-primary bg-primary/5"
-            : "border-neutral-200 dark:border-neutral-800 bg-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900"
-        )}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-black shadow-sm">
-          <Upload className="h-6 w-6 text-neutral-600 dark:text-neutral-400" />
+    <div className={cn("file-upload-wrapper", className)}>
+      {sectionLabel && (
+        <div className="file-upload-section-label">
+          <span>{sectionLabel}</span>
+          <span className="required-star">*</span>
         </div>
-        
-        <h3 className="mb-1 text-base font-medium text-neutral-900 dark:text-neutral-100">
+      )}
+      <div
+        className={`file-upload-box ${isDragging ? "is-dragging" : ""}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload files drop zone. Click or drag and drop files here."
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+      >
+        <div className="file-upload-icon-circle">
+          <Upload size={24} />
+        </div>
+
+        <h3 className="file-upload-title">
           {title}
         </h3>
-        
-        <p className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
+
+        <p className="file-upload-subtitle">
           {subtitle}
         </p>
-        
-        <Button
-          variant="outline"
-          className="bg-white dark:bg-black"
-          onClick={() => fileInputRef.current?.click()}
+
+        <button
+          type="button"
+          className="file-upload-select-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
         >
           {buttonText}
-        </Button>
-        
+        </button>
+
         <input
           ref={fileInputRef}
           type="file"
-          className="hidden"
-          multiple
+          className="file-input"
+          multiple={supportsMultiple}
           onChange={handleFileChange}
+          style={{ display: "none" }}
         />
       </div>
     </div>

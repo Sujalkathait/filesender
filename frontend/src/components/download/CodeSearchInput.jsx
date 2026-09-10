@@ -1,7 +1,6 @@
 import React from 'react';
 import { Copy, Key } from 'lucide-react';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../ui/input-otp';
-import { Button } from '../ui/button';
 import { Spinner } from '../ui/spinner';
 
 /**
@@ -37,21 +36,19 @@ export function CodeSearchInput({
         </InputOTP>
       </div>
       <div className="download-input-actions" style={{ display: 'flex', gap: '8px' }}>
-        <Button
+        <button
           type="button"
-          variant="secondary"
-          size="sm"
+          className="btn btn-secondary btn-sm"
           onClick={onPasteClipboard}
           title="Paste transfer code from clipboard"
           disabled={isLoading || isDecrypting}
           aria-label="Paste from clipboard"
         >
           <Copy size={14} className="mr-2" /> Paste
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
-          variant="default"
-          size="sm"
+          className="btn btn-primary btn-sm"
           onClick={() => onSearchCode()}
           disabled={isLoading || isDecrypting || !codeInput.trim()}
           aria-busy={isLoading}
@@ -66,7 +63,7 @@ export function CodeSearchInput({
               <Key size={15} className="mr-2" /> Connect &amp; Receive
             </>
           )}
-        </Button>
+        </button>
       </div>
     </div>
   );

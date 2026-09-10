@@ -229,9 +229,9 @@ function UploadPage() {
 
   return (
     <div className="page-container animate-in">
-      <Button variant="secondary" size="sm" className="back-btn" onClick={() => navigate('/')}>
-        <ArrowLeft size={15} className="mr-2" /> Back to Home
-      </Button>
+      <button className="btn btn-secondary btn-sm back-btn" onClick={() => navigate('/')}>
+        <ArrowLeft size={15} /> Back to Home
+      </button>
 
       <div className="page-header">
         <h2 className="flex items-center gap-2">
@@ -294,14 +294,13 @@ function UploadPage() {
                     </span>
                   )}
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
+                <button
+                  className="btn btn-secondary btn-sm"
                   onClick={handleClearAll}
                   disabled={isTransferring}
                 >
                   <Trash2 size={13} className="mr-2" /> Clear All
-                </Button>
+                </button>
               </div>
 
               {/* Single File Card */}
@@ -360,23 +359,22 @@ function UploadPage() {
               />
 
               <div style={{ marginTop: 20 }}>
-                <Button
+                <button
                   onClick={openConfirmation}
                   disabled={isTransferring || isOverLimit || files.length === 0}
                   aria-busy={isTransferring}
-                  size="lg"
-                  className="w-full"
+                  className={`btn btn-primary btn-lg full-width ${isTransferring ? 'btn-please-wait' : ''}`}
                 >
                   {isTransferring ? (
                     <>
-                      <Spinner size={18} className="mr-2" /> Please Wait
+                      <Spinner size={18} className="mr-2 text-white" /> Please Wait
                     </>
                   ) : (
                     <>
                       <Lock size={18} className="mr-2" /> {files.length > 1 ? `Send All (${files.length} files)` : 'Send File'}
                     </>
                   )}
-                </Button>
+                </button>
               </div>
             </div>
           )}

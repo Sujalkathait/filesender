@@ -153,29 +153,33 @@ export function DownloadFileCard({
 
       {/* Progress feedback while decrypting / downloading matching Image 1 */}
       {progress && isDecrypting && (
-        <div className="w-full rounded-xl border border-neutral-200 bg-white p-4 shadow-sm flex flex-col gap-4 mb-4 dark:border-neutral-800 dark:bg-black">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <Spinner size={22} className="text-neutral-900 dark:text-neutral-100" />
-              <div className="flex flex-col">
-                <span className="text-base font-medium text-neutral-900 dark:text-neutral-100">Downloading...</span>
-                <span className="text-sm text-neutral-500 dark:text-neutral-400">
+        <div className="download-progress-card">
+          <div className="download-progress-top">
+            <div className="download-progress-left">
+              <Spinner size={20} className="download-progress-spinner" />
+              <div className="download-progress-info">
+                <span className="download-progress-title">Downloading...</span>
+                <span className="download-progress-bytes">
                   {formatBytes(progress.transferredBytes || 0)} / {formatBytes(progress.totalBytes || fileInfo.original_size)}
                 </span>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="h-8">Cancel</Button>
+            <button type="button" className="download-progress-cancel-btn">Cancel</button>
           </div>
-          <Progress value={progress.percent} className="h-2 bg-neutral-100 dark:bg-neutral-800 [&>div]:bg-neutral-900 dark:[&>div]:bg-neutral-100" />
+          <div className="download-progress-track">
+            <div 
+              className="download-progress-fill" 
+              style={{ width: `${Math.min(100, Math.max(0, progress.percent || 0))}%` }} 
+            />
+          </div>
         </div>
       )}
 
       {!isBurned && (
         <div className="download-actions">
-          <Button
+          <button
             type="button"
-            variant="secondary"
-            size="lg"
+            className="btn btn-secondary btn-lg"
             onClick={() => onExecuteDownload(false, onPreviewReady)}
             disabled={isDecrypting}
             title="Inspect files in browser without saving to disk"
@@ -183,11 +187,10 @@ export function DownloadFileCard({
           >
             {isDecrypting ? <Spinner size={16} className="mr-2" /> : <Eye size={16} className="mr-2" />}
             <span>Preview Files</span>
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
-            variant="default"
-            size="lg"
+            className="btn btn-primary btn-lg"
             onClick={() => onExecuteDownload(true)}
             disabled={isDecrypting}
             aria-busy={isDecrypting}
@@ -202,7 +205,7 @@ export function DownloadFileCard({
                 <Download size={16} className="mr-2" /> Save &amp; Download
               </>
             )}
-          </Button>
+          </button>
         </div>
       )}
     </div>
