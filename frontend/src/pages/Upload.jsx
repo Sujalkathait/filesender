@@ -46,9 +46,9 @@ function UploadPage() {
 
   // Vault Options
   const [useSteganography, setUseSteganography] = useState(false);
-  const burnOnRead = true; // Always enabled — no data stored after download
-  const maxDownloads = 1;  // Single download only with burn-on-read
-  const [expiryHours, setExpiryHours] = useState(60);
+  const burnOnRead = true; // Always enabled — permanent self-destruct after max downloads
+  const maxDownloads = 2;  // Step 2 allows up to 2 saves before automatic permanent deletion
+  const [expiryHours, setExpiryHours] = useState(60); // Default: 60 seconds (1 min)
   const [useP2P, setUseP2P] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [qrModalItem, setQrModalItem] = useState(null);

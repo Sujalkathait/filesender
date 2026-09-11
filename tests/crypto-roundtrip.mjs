@@ -30,23 +30,23 @@ async function main() {
   check('isChunkedMarker detects', isChunkedMarker('chunked:4194304') === true);
   check('isChunkedMarker rejects legacy', isChunkedMarker('') === false);
 
-  const decBig = await decryptFile(enc.encryptedBlob, enc.password, enc.iv, enc.salt, null, true, enc.compressed);
+  const decBig = await decryptFile(enc.encryptedBlob, enc.password, enc.iv, enc.salt, null, true, enc.compressed, enc.wrappedKey, enc.wrapIV);
   check('large file round-trips byte-identical', decBig.length === big.length && decBig.every((b, i) => b === big[i]));
   check('password is 6 numeric digits', /^[0-9]{6}$/.test(enc.password));
 
-  // 2. Small file (1 KB) -> legacy single-shot format
+  // 2. Small file (1 KB) -> single-shot format with wrapped key
   const small = randomBytes(1024);
   const smallFile = new File([small], 'small.bin');
   const encSmall = await encryptFile(smallFile);
   check('small file uses legacy format', encSmall.chunked === false);
 
-  const decSmallLegacy = await decryptFile(encSmall.encryptedBlob, encSmall.password, encSmall.iv, encSmall.salt, null, false, encSmall.compressed);
-  check('small file round-trips (legacy path)', decSmallLegacy.length === small.length && decSmallLegacy.every((b, i) => b === small[i]));
+  const decSmallLegacy = await decryptFile(encSmall.encryptedBlob, encSmall.password, encSmall.iv, encSmall.salt, null, false, encSmall.compressed, encSmall.wrappedKey, encSmall.wrapIV);
+  check('small file round-trips (wrapped key path)', decSmallLegacy.length === small.length && decSmallLegacy.every((b, i) => b === small[i]));
 
   // 3. Wrong password must fail decryption (integrity check)
   let failed = false;
   try {
-    await decryptFile(enc.encryptedBlob, '00000000', enc.iv, enc.salt, null, true);
+    await decryptFile(enc.encryptedBlob, '000000', enc.iv, enc.salt, null, true, enc.compressed, enc.wrappedKey, enc.wrapIV);
   } catch (e) {
     failed = true;
   }
@@ -56,7 +56,7 @@ async function main() {
   const edge = randomBytes(4 * 1024 * 1024 + 1);
   const edgeFile = new File([edge], 'edge.bin');
   const encEdge = await encryptFile(edgeFile);
-  const decEdge = await decryptFile(encEdge.encryptedBlob, encEdge.password, encEdge.iv, encEdge.salt, null, true, encEdge.compressed);
+  const decEdge = await decryptFile(encEdge.encryptedBlob, encEdge.password, encEdge.iv, encEdge.salt, null, true, encEdge.compressed, encEdge.wrappedKey, encEdge.wrapIV);
   check('boundary file (4MB+1) round-trips', decEdge.length === edge.length && decEdge.every((b, i) => b === edge[i]));
 
   const failedCount = results.filter((r) => !r.ok).length;

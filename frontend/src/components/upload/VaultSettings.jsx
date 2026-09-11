@@ -2,13 +2,13 @@ import React from 'react';
 import { Flame, Image as ImageIcon, Radio, Clock, HelpCircle, ShieldCheck, Info } from 'lucide-react';
 
 const EXPIRY_PRESETS = [
-  { value: 15, label: '15s', fullLabel: '15 seconds', hint: 'Ultra fast temporary transfer' },
+  { value: 15, label: '15s', fullLabel: '15 seconds', hint: 'Ultra fast instant burn' },
   { value: 30, label: '30s', fullLabel: '30 seconds', hint: 'Quick verification transfer' },
   { value: 45, label: '45s', fullLabel: '45 seconds', hint: 'Fast temporary transfer' },
-  { value: 60, label: '1 min', fullLabel: '60 seconds (1 min)', hint: 'Standard recommended countdown' },
-  { value: 90, label: '1.5 min', fullLabel: '90 seconds (1.5 min)', hint: 'Medium duration transfer' },
-  { value: 120, label: '2 min', fullLabel: '2 minutes (120s)', hint: 'Extended duration transfer' },
-  { value: 180, label: '3 min', fullLabel: '3 minutes (180s)', hint: 'Maximum allowed countdown' },
+  { value: 54, label: '54s', fullLabel: '54 seconds', hint: 'Ultra-fast auto-wipe countdown' },
+  { value: 60, label: '1 min', fullLabel: '60 seconds (1 min - Recommended)', hint: 'Standard recommended countdown' },
+  { value: 120, label: '2 min', fullLabel: '2 minutes (120s)', hint: 'Medium duration transfer' },
+  { value: 180, label: '3 min', fullLabel: '3 minutes (180s - Max)', hint: 'Maximum allowed countdown (3 min)' },
 ];
 
 /**
@@ -29,7 +29,7 @@ export function VaultSettings({
 }) {
   const currentPreset = EXPIRY_PRESETS.find(p => p.value === expiryHours) || {
     value: expiryHours,
-    label: `${expiryHours}s`,
+    label: expiryHours >= 60 ? `${Math.round(expiryHours / 60)} min` : `${expiryHours}s`,
     fullLabel: `${expiryHours} seconds`,
     hint: 'Custom countdown'
   };
@@ -66,11 +66,11 @@ export function VaultSettings({
             </div>
             <div>
               <div className="option-card__title-row">
-                <strong className="option-card__title">Burn After Read (Self-Destruct)</strong>
-                <span className="badge badge-amber">ALWAYS ON</span>
+                <strong className="option-card__title">2-Step Privacy &amp; Fast Auto-Clean (15s–3 min)</strong>
+                <span className="badge badge-amber">ACTIVE</span>
               </div>
               <span className="option-card__description">
-                Every file permanently self-destructs from the server immediately once downloaded. This guarantees privacy and instantly frees up space in the shared global storage.
+                Recipients can safely preview in browser memory up to 2 times. Downloads are limited to 2 saves before automatic permanent deletion. Active storage automatically wipes upon expiration (15s–3 min).
               </span>
             </div>
           </div>
@@ -80,7 +80,7 @@ export function VaultSettings({
           <div className="vault-helper-pane" style={{ padding: '8px 12px', marginTop: 4 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.8rem', color: 'var(--fg-muted)' }}>
               <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-              <span>In-browser previews do not consume the transfer, so recipients can safely inspect files before completing their download.</span>
+              <span>Step 1 Preview (Max 2 Views) and Step 2 Download (Max 2 Saves) operate as strictly independent steps.</span>
             </div>
           </div>
         </div>

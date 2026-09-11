@@ -225,6 +225,20 @@ export function useDownload(stateMachine) {
         },
       });
 
+      if (headers) {
+        setFileInfo(prev => prev ? {
+          ...prev,
+          preview_count: headers.previewCount !== undefined ? headers.previewCount : prev.preview_count,
+          previewCount: headers.previewCount !== undefined ? headers.previewCount : prev.previewCount,
+          previews_remaining: headers.previewsRemaining !== null && headers.previewsRemaining !== undefined ? headers.previewsRemaining : prev.previews_remaining,
+          previewsRemaining: headers.previewsRemaining !== null && headers.previewsRemaining !== undefined ? headers.previewsRemaining : prev.previewsRemaining,
+          download_count: headers.downloadCount !== undefined ? headers.downloadCount : prev.download_count,
+          downloadCount: headers.downloadCount !== undefined ? headers.downloadCount : prev.downloadCount,
+          downloads_remaining: headers.downloadsRemaining !== null && headers.downloadsRemaining !== undefined ? headers.downloadsRemaining : prev.downloads_remaining,
+          downloadsRemaining: headers.downloadsRemaining !== null && headers.downloadsRemaining !== undefined ? headers.downloadsRemaining : prev.downloadsRemaining,
+        } : prev);
+      }
+
       if (headers.isBurn && triggerBrowserSave) {
         setIsBurned(true);
       }
@@ -285,7 +299,12 @@ export function useDownload(stateMachine) {
       setProgress({ stage: 'complete', percent: 100 });
     } catch (err) {
       const msg = (err.message || '').toLowerCase();
-      if (err.status === 410 || msg.includes('expired') || msg.includes('gone') || msg.includes('limit') || msg.includes('burn')) {
+      if (!triggerBrowserSave && (msg.includes('preview') || msg.includes('preview limit'))) {
+        // Only preview limit reached — Step 2: Download is still preserved!
+        setFileInfo(prev => prev ? { ...prev, previews_remaining: 0, previewsRemaining: 0, preview_count: 2, previewCount: 2 } : prev);
+        setError('Maximum 2 in-memory previews used. Please proceed to Step 2: Save & Download to save the file to disk.');
+        stateMachine?.transitionTo(TransferState.DOWNLOAD);
+      } else if (err.status === 410 || msg.includes('expired') || msg.includes('gone') || msg.includes('limit') || msg.includes('burn')) {
         setIsExpired(true);
         if (msg.includes('burn')) {
           setIsBurned(true);

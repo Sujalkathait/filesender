@@ -4,6 +4,8 @@
  * Includes intelligent chunked upload streaming to bypass serverless & proxy size limits.
  */
 
+import { getOrCreateClientId } from '../utils/clientId';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 const CHUNK_UPLOAD_SIZE = 2.5 * 1024 * 1024; // 2.5 MB safe slices (well within Vercel's 4.5 MB limit)
 
@@ -22,18 +24,26 @@ async function parseResponse(response) {
 }
 
 async function getJson(path, headers = {}) {
+  const clientId = getOrCreateClientId();
   const response = await fetch(`${API_URL}${path}`, {
-    headers: { Accept: 'application/json', ...headers },
+    headers: {
+      Accept: 'application/json',
+      'X-Client-ID': clientId,
+      ...headers
+    },
   });
   return parseResponse(response);
 }
 
-async function postJson(path, data = {}) {
+async function postJson(path, data = {}, headers = {}) {
+  const clientId = getOrCreateClientId();
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'X-Client-ID': clientId,
+      ...headers
     },
     body: JSON.stringify(data),
   });
@@ -48,6 +58,9 @@ function uploadFormData(path, formData, onProgress, method = 'POST') {
     const doUpload = (urlPath, isRetry = false) => {
       const xhr = new XMLHttpRequest();
       xhr.open(method, `${API_URL}${urlPath}`);
+      try {
+        xhr.setRequestHeader('X-Client-ID', getOrCreateClientId());
+      } catch (_) {}
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
@@ -161,6 +174,8 @@ async function downloadBlob(fileId, { preview = false, onProgress, proof } = {})
   const qs = params.toString();
   const headers = { Accept: 'application/octet-stream' };
   if (proof) headers['X-Access-Proof'] = proof;
+  headers['X-Client-ID'] = getOrCreateClientId();
+
   const response = await fetch(
     `${API_URL}/api/v1/files/${encodeURIComponent(fileId)}/content${qs ? `?${qs}` : ''}`,
     { headers }
@@ -192,6 +207,9 @@ async function downloadBlob(fileId, { preview = false, onProgress, proof } = {})
     }
   }
 
+  const rawPrevRemain = response.headers.get('X-Previews-Remaining');
+  const rawDownRemain = response.headers.get('X-Downloads-Remaining');
+
   return {
     blob: new Blob(chunks),
     headers: {
@@ -202,6 +220,10 @@ async function downloadBlob(fileId, { preview = false, onProgress, proof } = {})
       salt: response.headers.get('X-Salt'),
       wrappedKey: response.headers.get('X-Wrapped-Key'),
       wrapIV: response.headers.get('X-Wrap-IV'),
+      previewCount: Number(response.headers.get('X-Preview-Count') || 0),
+      previewsRemaining: rawPrevRemain !== null ? Number(rawPrevRemain) : null,
+      downloadCount: Number(response.headers.get('X-Download-Count') || 0),
+      downloadsRemaining: rawDownRemain !== null && rawDownRemain !== '' ? Number(rawDownRemain) : null,
     },
   };
 }
@@ -214,7 +236,7 @@ export const api = {
   refreshToken: (transferId) => postJson(`/api/v1/transfers/${encodeURIComponent(transferId)}/token/refresh`),
   deleteFile: (id, ownerToken) => fetch(`${API_URL}/api/v1/files/${encodeURIComponent(id)}`, {
     method: 'DELETE',
-    headers: { 'X-Owner-Token': ownerToken || '', Accept: 'application/json' },
+    headers: { 'X-Owner-Token': ownerToken || '', 'X-Client-ID': getOrCreateClientId(), Accept: 'application/json' },
   }).then(async (response) => {
     if (!response.ok) {
       const body = await response.json().catch(() => null);
@@ -224,7 +246,13 @@ export const api = {
     }
     return response.json().catch(() => ({ message: 'File deleted' }));
   }),
+  cancel: (id, ownerToken) => api.deleteFile(id, ownerToken),
   upload: (formData, onProgress) => uploadFormData('/api/v1/files', formData, onProgress, 'POST'),
   uploadSmart: uploadFileSmart,
   download: downloadBlob,
+  getUserStorage: () => getJson('/api/v1/user/storage'),
+  clearUserStorage: () => fetch(`${API_URL}/api/v1/user/storage`, {
+    method: 'DELETE',
+    headers: { 'X-Client-ID': getOrCreateClientId(), Accept: 'application/json' },
+  }).then(parseResponse),
 };

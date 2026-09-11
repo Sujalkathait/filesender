@@ -327,6 +327,7 @@ export async function encryptFile(file, onProgress) {
     wrappedKey,
     wrapIV,
     compressionRatio,
+    chunked,
     compressed: useGzip,
     fileId: await deriveFileId(password), // <--- New: attach deterministic file_id
   };

@@ -9,7 +9,7 @@ which made mistakes invisible).
 
 import re
 
-from api.config import MAX_FILE_SIZE, MAX_FILES_PER_TRANSFER
+from api.config import MAX_FILE_SIZE, MAX_FILES_PER_TRANSFER, DEFAULT_MAX_DOWNLOADS, MAX_EXPIRY_HOURS, DEFAULT_EXPIRY_SECONDS
 from api.errors import ValidationError
 
 # 4-32 hex chars (supports 5-char 10-digit transfer codes, 8-char legacy, 10-char, 16-char, 32-char)
@@ -18,7 +18,6 @@ HEX_STR_RE = re.compile(r"^[0-9a-fA-F]+$")
 IV_HEX_LEN = 24   # 12 bytes
 SALT_HEX_LEN = 32  # 16 bytes
 
-MAX_EXPIRY_HOURS = 1.0  # 60 minutes maximum
 MIN_EXPIRY_HOURS = 0.0027  # 10 seconds minimum (supports countdown timer down to 10s)
 
 SHARING_MODES = frozenset({"standard", "steganography", "burn_on_read", "both"})
@@ -78,6 +77,8 @@ def validate_upload_form(form: dict) -> dict:
     if file_id:
         file_id = validate_file_id(file_id)
 
+    client_id = (form.get("client_id") or "").strip()[:128] or None
+
     checksum = (form.get("checksum") or "").strip()[:64]
     if checksum and not re.match(r"^[A-Za-z0-9:_-]+$", checksum):
         raise ValidationError("Invalid checksum marker")
@@ -88,18 +89,20 @@ def validate_upload_form(form: dict) -> dict:
 
     burn_on_read = _to_int(form.get("burn_on_read"), 0, 0, 1, "burn_on_read")
     raw_max = form.get("max_downloads")
-    default_max = 1 if burn_on_read else 10
+    default_max = 1 if burn_on_read else DEFAULT_MAX_DOWNLOADS
     max_downloads = _to_int(raw_max, default_max, 0, 100, "max_downloads")
     if burn_on_read and (raw_max is None or raw_max == "" or raw_max == "10"):
         max_downloads = 1
 
+    max_seconds_limit = int(MAX_EXPIRY_HOURS * 3600)
     expiry_seconds_val = form.get("expiry_seconds")
     if expiry_seconds_val is not None and expiry_seconds_val != "":
-        expiry_seconds = _to_int(expiry_seconds_val, 60, 10, 3600, "expiry_seconds")
+        expiry_seconds = _to_int(expiry_seconds_val, DEFAULT_EXPIRY_SECONDS, 10, max_seconds_limit, "expiry_seconds")
         expiry_hours = expiry_seconds / 3600.0
     else:
+        default_h = DEFAULT_EXPIRY_SECONDS / 3600.0
         expiry_hours = _to_float(
-            form.get("expiry_hours"), 1.0, MIN_EXPIRY_HOURS, MAX_EXPIRY_HOURS, "expiry_hours"
+            form.get("expiry_hours"), default_h, MIN_EXPIRY_HOURS, MAX_EXPIRY_HOURS, "expiry_hours"
         )
         expiry_seconds = int(expiry_hours * 3600)
 
@@ -119,6 +122,7 @@ def validate_upload_form(form: dict) -> dict:
         "sharing_mode": sharing_mode,
         "transfer_id": transfer_id,
         "file_id": file_id,
+        "client_id": client_id,
         "checksum": checksum,
         "access_hash": access_hash,
         "wrapped_key": wrapped_key,

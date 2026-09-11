@@ -42,6 +42,14 @@ def _client_ip() -> str:
     return request.remote_addr or "unknown"
 
 
+def _client_id() -> str:
+    """Resolve anonymous client ID from X-Client-ID header or fallback to client IP."""
+    raw = (request.headers.get("X-Client-ID") or request.headers.get("X-User-ID") or "").strip()
+    if raw:
+        return raw[:128]
+    return f"ip_{_client_ip()}"
+
+
 def _request_access_proof() -> str:
     raw = request.headers.get("X-Access-Proof") or request.args.get("proof") or ""
     return validate_access_proof(raw)
@@ -125,6 +133,8 @@ def upload_file():
         raise ApiError("No file selected or empty file uploaded", 400)
 
     form = validate_upload_form(dict(request.form))
+    if not form.get("client_id"):
+        form["client_id"] = _client_id()
 
     try:
         result = _transfer_service.upload_file(file_obj, form)
@@ -144,6 +154,8 @@ def upload_init():
 
     data = request.get_json(silent=True) or dict(request.form)
     form = validate_upload_form(data)
+    if not form.get("client_id"):
+        form["client_id"] = _client_id()
     filename = (data.get("filename") or data.get("original_name") or "file.encrypted")[:255]
     content_type = (data.get("content_type") or "application/octet-stream")[:128]
 
@@ -274,6 +286,10 @@ def download_file(file_id):
     response.headers["X-IV"] = row["iv"]
     response.headers["X-Salt"] = row["salt"]
     response.headers["X-Compressed"] = str(row["compressed"])
+    response.headers["X-Preview-Count"] = str(row.get("preview_count", 0))
+    response.headers["X-Previews-Remaining"] = str(row.get("previews_remaining", 0))
+    response.headers["X-Download-Count"] = str(row.get("download_count", 0))
+    response.headers["X-Downloads-Remaining"] = str(row.get("downloads_remaining") if row.get("downloads_remaining") is not None else "")
     if row.get("wrapped_key"):
         response.headers["X-Wrapped-Key"] = row["wrapped_key"]
     if row.get("wrap_iv"):
@@ -281,6 +297,30 @@ def download_file(file_id):
     if row.get("checksum"):
         response.headers["X-Checksum"] = row["checksum"]
     return response
+
+
+@file_bp.route("/api/v1/user/storage", methods=["GET", "OPTIONS"], strict_slashes=False)
+def get_user_storage():
+    """Get personal 1 GB quota usage for the current anonymous client ID."""
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    _rate_limiter.check("storage", _client_ip())
+    client_id = _client_id()
+    return jsonify(_transfer_service.get_user_storage(client_id))
+
+
+@file_bp.route("/api/v1/user/storage", methods=["DELETE", "OPTIONS"], strict_slashes=False)
+@file_bp.route("/api/v1/user/clear-storage", methods=["POST", "DELETE", "OPTIONS"], strict_slashes=False)
+def clear_user_storage():
+    """Wipe all active files for this client ID and reset personal quota to 0 MB."""
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    _rate_limiter.check("delete", _client_ip())
+    client_id = _client_id()
+    result = _transfer_service.clear_user_storage(client_id)
+    return jsonify(result)
 
 
 @file_bp.route("/api/v1/files/<file_id>", methods=["DELETE", "OPTIONS"], strict_slashes=False)
@@ -301,6 +341,15 @@ def get_stats():
     if request.method == "OPTIONS":
         return ("", 204)
     return jsonify(_transfer_service.get_stats())
+
+
+@file_bp.route("/api/v1/system/db-metrics", methods=["GET", "OPTIONS"], strict_slashes=False)
+def get_db_metrics():
+    """Database scalability, indexing, sizing, and concurrency performance telemetry."""
+    if request.method == "OPTIONS":
+        return ("", 204)
+    return jsonify(_transfer_service.get_db_metrics())
+
 
 
 @file_bp.route("/api/v1/system/cleanup", methods=["GET", "POST", "OPTIONS"], strict_slashes=False)

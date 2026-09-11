@@ -15,9 +15,12 @@ from datetime import timedelta
 
 from api.database import DatabaseManager
 from api.storage import StorageManager
-from api.config import MAX_FILE_SIZE, MAX_SYSTEM_STORAGE, MAX_SYSTEM_USERS, MAX_FILES_PER_TRANSFER, MAX_REFRESHES_PER_SESSION, MAX_PREVIEWS_PER_FILE
+from api.config import (
+    MAX_FILE_SIZE, PER_USER_MAX_STORAGE, MAX_SYSTEM_STORAGE, MAX_SYSTEM_USERS,
+    MAX_FILES_PER_TRANSFER, MAX_REFRESHES_PER_SESSION, MAX_PREVIEWS_PER_FILE, DEFAULT_MAX_DOWNLOADS
+)
 from api.utils import generate_id, generate_owner_token, hash_token, tokens_match, proofs_match, get_utc_now, get_utc_now_iso, is_expired
-from api.errors import ApiError, NotFoundError, GoneError, ConflictError, ForbiddenError, ValidationError
+from api.errors import ApiError, NotFoundError, GoneError, ConflictError, ForbiddenError, ValidationError, PayloadTooLargeError
 
 MAX_ALLOWED_ENCRYPTED = MAX_FILE_SIZE + 64 * 1024 * 1024  # 1 GB + overhead
 
@@ -44,8 +47,107 @@ class TransferService:
         finally:
             conn.close()
 
+    def get_user_storage_used(self, client_id: str) -> int:
+        """Calculate total original bytes stored for a specific user."""
+        if not client_id:
+            return 0
+        conn = self.db.get_connection()
+        try:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(original_size), 0) as total FROM files WHERE client_id = ? AND status != 'burned'",
+                (client_id,)
+            ).fetchone()
+            return int(row["total"]) if row else 0
+        finally:
+            conn.close()
+
+    def get_user_storage(self, client_id: str) -> dict:
+        """Retrieve personal storage usage stats for an anonymous client ID."""
+        client_id = (client_id or "anonymous").strip()
+        used_bytes = self.get_user_storage_used(client_id)
+        max_bytes = PER_USER_MAX_STORAGE
+        rem_bytes = max(0, max_bytes - used_bytes)
+        conn = self.db.get_connection()
+        file_count = 0
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) as count FROM files WHERE client_id = ? AND status != 'burned'",
+                (client_id,)
+            ).fetchone()
+            file_count = int(row["count"]) if row else 0
+        finally:
+            conn.close()
+
+        return {
+            "client_id": client_id,
+            "used_bytes": used_bytes,
+            "used_mb": used_bytes // (1024 * 1024),
+            "max_bytes": max_bytes,
+            "max_mb": max_bytes // (1024 * 1024),
+            "available_bytes": rem_bytes,
+            "available_mb": rem_bytes // (1024 * 1024),
+            "file_count": file_count
+        }
+
+    def check_user_quota(self, client_id: str, new_size: int):
+        """Validate that adding new_size will not exceed the user's 1 GB personal quota."""
+        client_id = (client_id or "anonymous").strip()
+        used_bytes = self.get_user_storage_used(client_id)
+        if used_bytes + new_size > PER_USER_MAX_STORAGE:
+            used_mb = used_bytes // (1024 * 1024)
+            rem_mb = max(0, (PER_USER_MAX_STORAGE - used_bytes) // (1024 * 1024))
+            max_mb = PER_USER_MAX_STORAGE // (1024 * 1024)
+            max_str = "1 GB" if max_mb == 1024 else f"{max_mb} MB"
+            raise PayloadTooLargeError(
+                f"Upload Failed\n1 GB personal storage limit exceeded!\n"
+                f"Maximum allowed: {max_str}\n"
+                f"Storage used: {used_mb} MB / {max_mb} MB\n"
+                f"Available: {rem_mb} MB\n"
+                f"Please delete old files using 'Clear My Storage' or wait for the 24-hour auto-reset."
+            )
+
+    def clear_user_storage(self, client_id: str) -> dict:
+        """Manually purge all active files uploaded by this user and reset quota to 0 MB."""
+        client_id = (client_id or "anonymous").strip()
+        conn = self.db.get_connection()
+        deleted_ids = []
+        freed_bytes = 0
+        try:
+            rows = conn.execute(
+                "SELECT id, original_size, transfer_id FROM files WHERE client_id = ?",
+                (client_id,)
+            ).fetchall()
+            for r in rows:
+                deleted_ids.append(r["id"])
+                freed_bytes += int(r["original_size"] or 0)
+                self.storage.delete_file(r["id"])
+                if r["transfer_id"]:
+                    self.storage.purge_transfer_chunks(r["transfer_id"])
+
+            if deleted_ids:
+                placeholders = ",".join("?" for _ in deleted_ids)
+                conn.execute(f"DELETE FROM files WHERE id IN ({placeholders})", deleted_ids)
+                conn.execute(f"DELETE FROM chunks WHERE file_id IN ({placeholders})", deleted_ids)
+
+            t_rows = conn.execute("SELECT id FROM transfers WHERE client_id = ?", (client_id,)).fetchall()
+            for tr in t_rows:
+                self.storage.purge_transfer_chunks(tr["id"])
+            conn.execute("DELETE FROM transfers WHERE client_id = ?", (client_id,))
+
+            conn.commit()
+        finally:
+            conn.close()
+
+        return {
+            "message": "Personal storage cleared successfully",
+            "deleted_files_count": len(deleted_ids),
+            "freed_bytes": freed_bytes,
+            "used_bytes": 0,
+            "max_bytes": PER_USER_MAX_STORAGE
+        }
+
     def _check_system_user_capacity(self, transfer_id: str = None):
-        """Limit system to MAX_SYSTEM_USERS (20) concurrent active transfers/users."""
+        """Limit system to MAX_SYSTEM_USERS concurrent active transfers/users."""
         conn = self.db.get_connection()
         try:
             cursor = conn.execute(
@@ -54,13 +156,12 @@ class TransferService:
             )
             row = cursor.fetchone()
             active_count = row["count"] if row else 0
-            # If updating an existing transfer (e.g. multi-part/chunk), it's not a new session
             if transfer_id:
                 existing = conn.execute("SELECT id FROM transfers WHERE id = ?", (transfer_id,)).fetchone()
                 if existing:
                     return
             if active_count >= MAX_SYSTEM_USERS:
-                raise ApiError("System user capacity reached (maximum 20 concurrent users). Please try again shortly.", 429)
+                raise ApiError(f"System user capacity reached (maximum {MAX_SYSTEM_USERS} concurrent users). Please try again shortly.", 429)
         finally:
             conn.close()
 
@@ -80,13 +181,8 @@ class TransferService:
         self._check_system_user_capacity(transfer_id)
 
         original_size = form_data["original_size"]
-        total_used = self._get_total_storage_used()
-        if total_used + original_size > MAX_SYSTEM_STORAGE:
-            used_mb = total_used // (1024 * 1024)
-            rem_mb = max(0, (MAX_SYSTEM_STORAGE - total_used) // (1024 * 1024))
-            max_mb = MAX_SYSTEM_STORAGE // (1024 * 1024)
-            max_str = "1 GB" if max_mb == 1024 else f"{max_mb} MB"
-            raise PayloadTooLargeError(f"Upload Failed\nStorage limit exceeded.\nMaximum allowed: {max_str}\nStorage used: {used_mb} MB\nAvailable: {rem_mb} MB")
+        client_id = (form_data.get("client_id") or "anonymous").strip()
+        self.check_user_quota(client_id, original_size)
 
         iv = form_data["iv"]
         salt = form_data["salt"]
@@ -130,20 +226,20 @@ class TransferService:
         try:
             # Create transfer record (UPSERT so multi-file transfers accumulate)
             conn.execute("""
-                INSERT INTO transfers (id, token_hash, status, created_at, expires_at, total_size, file_count, sharing_mode, refresh_count, max_refreshes, burn_on_read)
-                VALUES (?, ?, 'active', ?, ?, ?, 1, ?, 0, 5, ?)
-                ON CONFLICT(id) DO UPDATE SET total_size = total_size + excluded.total_size, file_count = file_count + 1
-            """, (transfer_id, hash_token(owner_token), created_at_iso, expires_at_iso, original_size, sharing_mode, burn_on_read))
+                INSERT INTO transfers (id, token_hash, client_id, status, created_at, expires_at, total_size, file_count, sharing_mode, refresh_count, max_refreshes, burn_on_read)
+                VALUES (?, ?, ?, 'active', ?, ?, ?, 1, ?, 0, 5, ?)
+                ON CONFLICT(id) DO UPDATE SET total_size = total_size + excluded.total_size, file_count = file_count + 1, client_id = COALESCE(client_id, excluded.client_id)
+            """, (transfer_id, hash_token(owner_token), client_id, created_at_iso, expires_at_iso, original_size, sharing_mode, burn_on_read))
 
             # Insert file metadata
             conn.execute("""
-                INSERT INTO files (id, transfer_id, filename, original_name, original_size, encrypted_size,
-                                  mime_type, created_at, expires_at, download_count, max_downloads, iv, salt, compressed, checksum, burn_on_read, status, access_hash, wrapped_key, wrap_iv)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'ready', ?, ?, ?)
+                INSERT INTO files (id, transfer_id, client_id, filename, original_name, original_size, encrypted_size,
+                                  mime_type, created_at, expires_at, download_count, max_downloads, max_previews, preview_count, iv, salt, compressed, checksum, burn_on_read, status, access_hash, wrapped_key, wrap_iv)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, ?, ?, ?, 'ready', ?, ?, ?)
             """, (
-                file_id, transfer_id, file_obj.filename or "file.encrypted", original_name, original_size, encrypted_size,
+                file_id, transfer_id, client_id, file_obj.filename or "file.encrypted", original_name, original_size, encrypted_size,
                 file_obj.content_type or "application/octet-stream", created_at_iso, expires_at_iso,
-                effective_max_downloads, iv, salt, compressed, checksum, burn_on_read, access_hash, wrapped_key, wrap_iv
+                effective_max_downloads, MAX_PREVIEWS_PER_FILE, iv, salt, compressed, checksum, burn_on_read, access_hash, wrapped_key, wrap_iv
             ))
 
             conn.commit()
@@ -169,6 +265,12 @@ class TransferService:
             "maxDownloads": effective_max_downloads,
             "downloads_remaining": downloads_remaining,
             "downloadsRemaining": downloads_remaining,
+            "preview_count": 0,
+            "previewCount": 0,
+            "max_previews": MAX_PREVIEWS_PER_FILE,
+            "maxPreviews": MAX_PREVIEWS_PER_FILE,
+            "previews_remaining": MAX_PREVIEWS_PER_FILE,
+            "previewsRemaining": MAX_PREVIEWS_PER_FILE,
             "refresh_count": 0,
             "max_refreshes": MAX_REFRESHES_PER_SESSION,
             "qr_data": file_id,
@@ -187,13 +289,8 @@ class TransferService:
         self._check_system_user_capacity(transfer_id)
 
         original_size = form_data["original_size"]
-        total_used = self._get_total_storage_used()
-        if total_used + original_size > MAX_SYSTEM_STORAGE:
-            used_mb = total_used // (1024 * 1024)
-            rem_mb = max(0, (MAX_SYSTEM_STORAGE - total_used) // (1024 * 1024))
-            max_mb = MAX_SYSTEM_STORAGE // (1024 * 1024)
-            max_str = "1 GB" if max_mb == 1024 else f"{max_mb} MB"
-            raise PayloadTooLargeError(f"Upload Failed\nStorage limit exceeded.\nMaximum allowed: {max_str}\nStorage used: {used_mb} MB\nAvailable: {rem_mb} MB")
+        client_id = (form_data.get("client_id") or "anonymous").strip()
+        self.check_user_quota(client_id, original_size)
 
         iv = form_data["iv"]
         salt = form_data["salt"]
@@ -221,19 +318,19 @@ class TransferService:
         conn = self.db.get_connection()
         try:
             conn.execute("""
-                INSERT INTO transfers (id, token_hash, status, created_at, expires_at, total_size, file_count, sharing_mode, refresh_count, max_refreshes, burn_on_read)
-                VALUES (?, ?, 'uploading', ?, ?, ?, 1, ?, 0, 5, ?)
-                ON CONFLICT(id) DO UPDATE SET total_size = total_size + excluded.total_size, file_count = file_count + 1
-            """, (transfer_id, hash_token(owner_token), created_at_iso, expires_at_iso, original_size, sharing_mode, burn_on_read))
+                INSERT INTO transfers (id, token_hash, client_id, status, created_at, expires_at, total_size, file_count, sharing_mode, refresh_count, max_refreshes, burn_on_read)
+                VALUES (?, ?, ?, 'uploading', ?, ?, ?, 1, ?, 0, 5, ?)
+                ON CONFLICT(id) DO UPDATE SET total_size = total_size + excluded.total_size, file_count = file_count + 1, client_id = COALESCE(client_id, excluded.client_id)
+            """, (transfer_id, hash_token(owner_token), client_id, created_at_iso, expires_at_iso, original_size, sharing_mode, burn_on_read))
 
             conn.execute("""
-                INSERT INTO files (id, transfer_id, filename, original_name, original_size, encrypted_size,
-                                  mime_type, created_at, expires_at, download_count, max_downloads, iv, salt, compressed, checksum, burn_on_read, status, access_hash, wrapped_key, wrap_iv)
-                VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?)
+                INSERT INTO files (id, transfer_id, client_id, filename, original_name, original_size, encrypted_size,
+                                  mime_type, created_at, expires_at, download_count, max_downloads, max_previews, preview_count, iv, salt, compressed, checksum, burn_on_read, status, access_hash, wrapped_key, wrap_iv)
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, 0, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?)
             """, (
-                file_id, transfer_id, filename or "file.encrypted", original_name, original_size,
+                file_id, transfer_id, client_id, filename or "file.encrypted", original_name, original_size,
                 content_type or "application/octet-stream", created_at_iso, expires_at_iso,
-                effective_max_downloads, iv, salt, compressed, checksum, burn_on_read, access_hash, wrapped_key, wrap_iv
+                effective_max_downloads, MAX_PREVIEWS_PER_FILE, iv, salt, compressed, checksum, burn_on_read, access_hash, wrapped_key, wrap_iv
             ))
             conn.commit()
         finally:
@@ -255,6 +352,12 @@ class TransferService:
             "maxDownloads": effective_max_downloads,
             "downloads_remaining": downloads_remaining,
             "downloadsRemaining": downloads_remaining,
+            "preview_count": 0,
+            "previewCount": 0,
+            "max_previews": MAX_PREVIEWS_PER_FILE,
+            "maxPreviews": MAX_PREVIEWS_PER_FILE,
+            "previews_remaining": MAX_PREVIEWS_PER_FILE,
+            "previewsRemaining": MAX_PREVIEWS_PER_FILE,
             "owner_token": owner_token,
             "refresh_count": 0,
             "max_refreshes": MAX_REFRESHES_PER_SESSION,
@@ -464,6 +567,10 @@ class TransferService:
             if row["max_downloads"] > 0:
                 downloads_remaining = max(0, row["max_downloads"] - row["download_count"])
 
+            cur_p = int(row["preview_count"] or 0)
+            max_p = int(row["max_previews"] or MAX_PREVIEWS_PER_FILE) if ("max_previews" in row.keys() and row["max_previews"] is not None) else MAX_PREVIEWS_PER_FILE
+            previews_remaining = max(0, max_p - cur_p)
+
             return {
                 "id": row["id"],
                 "transfer_id": row["transfer_id"] or row["id"],
@@ -481,6 +588,12 @@ class TransferService:
                 "maxDownloads": row["max_downloads"],
                 "downloads_remaining": downloads_remaining,
                 "downloadsRemaining": downloads_remaining,
+                "preview_count": cur_p,
+                "previewCount": cur_p,
+                "max_previews": max_p,
+                "maxPreviews": max_p,
+                "previews_remaining": previews_remaining,
+                "previewsRemaining": previews_remaining,
                 "compressed": bool(row["compressed"]),
                 "burn_on_read": bool(row["burn_on_read"]),
                 "burnOnRead": bool(row["burn_on_read"]),
@@ -529,6 +642,11 @@ class TransferService:
             self._require_access_proof(conn, row["id"], row, proof)
 
             if preview:
+                cur_previews = int(row["preview_count"] or 0)
+                max_prev = int(row["max_previews"] or MAX_PREVIEWS_PER_FILE) if ("max_previews" in row.keys() and row["max_previews"] is not None) else MAX_PREVIEWS_PER_FILE
+                if cur_previews >= max_prev:
+                    raise GoneError(f"Preview limit reached (maximum {max_prev} previews used). Please proceed to Step 2: Save & Download.")
+
                 conn.execute("""
                     UPDATE files
                     SET preview_count = COALESCE(preview_count, 0) + 1
@@ -544,7 +662,7 @@ class TransferService:
                 )
                 
                 # Atomic reservation for burn-on-read
-                if bool(row["burn_on_read"]):
+                if bool(row["burn_on_read"]) and (row["max_downloads"] <= 1 or next_count >= row["max_downloads"]):
                     timeout_iso = (get_utc_now() - timedelta(minutes=5)).isoformat()
                     updated = conn.execute("""
                         UPDATE files
@@ -563,6 +681,8 @@ class TransferService:
         if not os.path.exists(file_path):
             raise NotFoundError("File data missing")
 
+        cur_p = (row["preview_count"] or 0) + (1 if preview else 0)
+        max_p = int(row["max_previews"] or MAX_PREVIEWS_PER_FILE) if ("max_previews" in row.keys() and row["max_previews"] is not None) else MAX_PREVIEWS_PER_FILE
         row_dict = {
             "id": row["id"],
             "filename": row["filename"],
@@ -572,6 +692,10 @@ class TransferService:
             "burn_on_read": row["burn_on_read"],
             "max_downloads": row["max_downloads"],
             "download_count": row["download_count"],
+            "downloads_remaining": max(0, row["max_downloads"] - row["download_count"]) if row["max_downloads"] > 0 else None,
+            "preview_count": cur_p,
+            "max_previews": max_p,
+            "previews_remaining": max(0, max_p - cur_p),
             "iv": row["iv"],
             "salt": row["salt"],
             "checksum": row["checksum"] or "",
@@ -648,21 +772,13 @@ class TransferService:
 
         conn = self.db.get_connection()
         try:
-            row = conn.execute(
-                "SELECT transfer_id FROM files WHERE id = ?",
-                (file_id,),
-            ).fetchone()
+            row = conn.execute("SELECT id, transfer_id FROM files WHERE id = ?", (file_id,)).fetchone()
             if not row:
                 raise NotFoundError("File not found")
 
-            transfer_id = row["transfer_id"] or file_id
-            t_row = conn.execute(
-                "SELECT token_hash FROM transfers WHERE id = ?",
-                (transfer_id,),
-            ).fetchone()
-            stored_hash = t_row["token_hash"] if t_row else None
-            if not tokens_match(owner_token, stored_hash or ""):
-                raise ForbiddenError("Owner token required")
+            t_row = conn.execute("SELECT token_hash FROM transfers WHERE id = ?", (row["transfer_id"],)).fetchone()
+            if not t_row or not tokens_match(owner_token, t_row["token_hash"]):
+                raise ForbiddenError("Invalid owner token")
 
             conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
             conn.execute("DELETE FROM chunks WHERE file_id = ?", (file_id,))
@@ -678,9 +794,16 @@ class TransferService:
         total_used = self._get_total_storage_used()
         return {
             "max_file_size": MAX_FILE_SIZE,
+            "per_user_max_storage": PER_USER_MAX_STORAGE,
             "max_system_storage": MAX_SYSTEM_STORAGE,
             "total_storage_used": total_used,
             "max_refreshes": MAX_REFRESHES_PER_SESSION,
             "max_previews": MAX_PREVIEWS_PER_FILE,
+            "default_max_downloads": DEFAULT_MAX_DOWNLOADS,
             "server_time": get_utc_now().isoformat()
         }
+
+    def get_db_metrics(self) -> dict:
+        """Database performance, sizing, and storage telemetry."""
+        return self.db.get_db_metrics()
+

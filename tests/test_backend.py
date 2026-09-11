@@ -414,15 +414,15 @@ def run_all_tests():
     check("download correct proof -> 200", r_ok_dl.status_code == 200 and r_ok_dl.data == b"proof-protected")
     check("file-info proof query param -> 200", client.get(f"/api/v1/files/{fid_ap}?proof={PROOF}", no_proof=True).status_code == 200)
 
-    print("\n== Expiry limit (60 mins max) enforcement ==")
+    print("\n== Expiry limit (24 hours max) enforcement ==")
     r_bad_exp = client.post("/api/v1/files", data={
         "file": (io.BytesIO(b"too-long-expiry"), "exp.encrypted"),
         "iv": "aa" * 12, "salt": "bb" * 16,
         "original_name": "expired.txt",
         "original_size": "15",
-        "expiry_hours": "2",  # > 1.0 hour (60 min) must be rejected
+        "expiry_hours": "25",  # > 24.0 hours (1 day) must be rejected
     }, content_type="multipart/form-data")
-    check("Expiry > 60 minutes rejected with 400", r_bad_exp.status_code == 400)
+    check("Expiry > 24 hours rejected with 400", r_bad_exp.status_code == 400)
 
     print("\n== Owner token DELETE, filename sanitization, IV/salt ==")
     r_own = client.post("/api/v1/files", data={

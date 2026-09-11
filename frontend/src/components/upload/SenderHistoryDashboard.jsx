@@ -19,13 +19,24 @@ export function SenderHistoryDashboard({ onSelectTransferForQR, activeTransferId
   const [copiedId, setCopiedId] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [userStorage, setUserStorage] = useState(null);
+  const [isClearingStorage, setIsClearingStorage] = useState(false);
+  const [storageMessage, setStorageMessage] = useState(null);
 
   const reloadHistory = () => {
     setHistory(getSenderHistory());
   };
 
+  const fetchStorage = async () => {
+    try {
+      const data = await api.getUserStorage();
+      setUserStorage(data);
+    } catch (_) {}
+  };
+
   useEffect(() => {
     reloadHistory();
+    fetchStorage();
     const timer = setInterval(() => {
       setNow(Date.now());
     }, 1000);
@@ -54,6 +65,7 @@ export function SenderHistoryDashboard({ onSelectTransferForQR, activeTransferId
       }
       updateTransferInHistory(item.fileId, { status: 'cancelled' });
       reloadHistory();
+      await fetchStorage();
     } catch (err) {
       console.warn('Could not cancel server transfer:', err);
       updateTransferInHistory(item.fileId, { status: 'cancelled' });
@@ -63,12 +75,35 @@ export function SenderHistoryDashboard({ onSelectTransferForQR, activeTransferId
     }
   };
 
+  const handleClearStorage = async () => {
+    const usedMb = userStorage?.used_mb || 0;
+    const confirmClear = window.confirm(
+      `Clear your 1 GB personal storage (${usedMb} MB currently used)?\n\nThis will permanently delete all your active uploaded files from the server and instantly reset your quota to 0 MB / 1024 MB.`
+    );
+    if (!confirmClear) return;
+
+    setIsClearingStorage(true);
+    setStorageMessage(null);
+    try {
+      const res = await api.clearUserStorage();
+      clearAllTransferHistory();
+      reloadHistory();
+      await fetchStorage();
+      setStorageMessage(`Storage wiped! Freed ${res.freed_mb ?? usedMb} MB. Quota reset to 0 MB.`);
+      setTimeout(() => setStorageMessage(null), 4000);
+    } catch (err) {
+      alert(err.message || 'Could not clear storage');
+    } finally {
+      setIsClearingStorage(false);
+    }
+  };
+
   const handleRemoveRecord = (fileId) => {
     removeTransferFromHistory(fileId);
     reloadHistory();
   };
 
-  if (history.length === 0) {
+  if (history.length === 0 && (!userStorage || userStorage.used_bytes === 0)) {
     return null;
   }
 
@@ -82,6 +117,10 @@ export function SenderHistoryDashboard({ onSelectTransferForQR, activeTransferId
     return `${mins}m ${secs < 10 ? '0' : ''}${secs}s remaining`;
   };
 
+  const usedMb = userStorage ? userStorage.used_mb : 0;
+  const maxMb = userStorage ? userStorage.max_mb : 1024;
+  const usedPercent = userStorage ? userStorage.used_percentage : 0;
+
   return (
     <div className="sender-history-section animate-in" aria-label="Active Transfers Dashboard">
       <div className="sender-history-header">
@@ -90,19 +129,75 @@ export function SenderHistoryDashboard({ onSelectTransferForQR, activeTransferId
           <h3 className="sender-history-title">My Shared Transfers</h3>
           <span className="badge badge-primary">{history.length}</span>
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost btn-xs"
-          onClick={() => {
-            if (window.confirm('Clear all transfer history records from this browser?')) {
-              clearAllTransferHistory();
-              reloadHistory();
-            }
-          }}
-          title="Clear local transfer history"
-        >
-          Clear History
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-xs"
+            onClick={handleClearStorage}
+            disabled={isClearingStorage || usedMb === 0}
+            title="Wipe your 1 GB personal storage and delete all your active uploads"
+            style={{ color: 'var(--danger-fg, #ef4444)', borderColor: 'var(--border-default)' }}
+          >
+            <Trash2 size={12} className="mr-1" />
+            <span>{isClearingStorage ? 'Wiping...' : `Clear My Storage (${usedMb} MB / ${maxMb} MB)`}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={() => {
+              if (window.confirm('Clear all transfer history records from this browser?')) {
+                clearAllTransferHistory();
+                reloadHistory();
+              }
+            }}
+            title="Clear local transfer history"
+          >
+            Clear History
+          </button>
+        </div>
+      </div>
+
+      {/* Live Personal Quota Telemetry Strip */}
+      <div style={{
+        padding: '12px 14px',
+        marginBottom: 14,
+        borderRadius: '10px',
+        background: 'var(--bg-surface, #ffffff)',
+        border: '1px solid var(--border-default, #e2e8f0)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--fg-default)' }}>
+            Personal Storage Quota (Independent 1 GB)
+          </span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: usedPercent > 80 ? 'var(--danger-fg, #ef4444)' : 'var(--fg-muted)' }}>
+            {usedMb} MB / {maxMb} MB ({usedPercent}%)
+          </span>
+        </div>
+        <div style={{
+          height: 6,
+          background: 'var(--border-subtle, #e2e8f0)',
+          borderRadius: 3,
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <div style={{
+            width: `${Math.min(100, usedPercent)}%`,
+            height: '100%',
+            background: usedPercent > 80 ? 'var(--danger-fg, #ef4444)' : 'var(--accent, #0066ff)',
+            borderRadius: 3,
+            transition: 'width 0.3s ease'
+          }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, fontSize: '0.74rem', color: 'var(--fg-muted)' }}>
+          <span>Your uploads do not affect other users.</span>
+          <span>Auto-wiped on expiry (15s–3 min default).</span>
+        </div>
+        {storageMessage && (
+          <div style={{ marginTop: 6, fontSize: '0.76rem', color: 'var(--success-fg, #10b981)', fontWeight: 500 }}>
+            ✓ {storageMessage}
+          </div>
+        )}
       </div>
 
       <div className="sender-history-grid">

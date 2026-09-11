@@ -43,6 +43,24 @@ export function DownloadFileCard({
   const fileCount = fileInfo.file_count || fileInfo.fileCount || 1;
   const isBundle = fileCount > 1 || (fileInfo.original_name || '').endsWith('.bundle');
 
+  const maxPreviews = fileInfo.max_previews || fileInfo.maxPreviews || 2;
+  const previewCount = fileInfo.preview_count || fileInfo.previewCount || 0;
+  const previewsRemaining = fileInfo.previews_remaining !== undefined && fileInfo.previews_remaining !== null
+    ? fileInfo.previews_remaining
+    : (fileInfo.previewsRemaining !== undefined && fileInfo.previewsRemaining !== null
+        ? fileInfo.previewsRemaining
+        : Math.max(0, maxPreviews - previewCount));
+  const isPrevExhausted = previewsRemaining <= 0;
+
+  const maxDownloads = fileInfo.max_downloads || fileInfo.maxDownloads || 2;
+  const downloadCount = fileInfo.download_count || fileInfo.downloadCount || 0;
+  const downloadsRemaining = fileInfo.downloads_remaining !== undefined && fileInfo.downloads_remaining !== null
+    ? fileInfo.downloads_remaining
+    : (fileInfo.downloadsRemaining !== undefined && fileInfo.downloadsRemaining !== null
+        ? fileInfo.downloadsRemaining
+        : Math.max(0, maxDownloads - downloadCount));
+  const isDownExhausted = downloadsRemaining <= 0;
+
   const expiresAtVal = fileInfo.expiresAt || fileInfo.expires_at;
   const expiresTimestamp = expiresAtVal ? new Date(expiresAtVal).getTime() : 0;
   const remainingMillis = Math.max(0, expiresTimestamp - now);
@@ -176,36 +194,121 @@ export function DownloadFileCard({
       )}
 
       {!isBurned && (
-        <div className="download-actions">
-          <button
-            type="button"
-            className="btn btn-secondary btn-lg"
-            onClick={() => onExecuteDownload(false, onPreviewReady)}
-            disabled={isDecrypting}
-            title="Inspect files in browser without saving to disk"
-            aria-label="Preview files in browser"
-          >
-            {isDecrypting ? <Spinner size={16} className="mr-2" /> : <Eye size={16} className="mr-2" />}
-            <span>Preview Files</span>
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-lg"
-            onClick={() => onExecuteDownload(true)}
-            disabled={isDecrypting}
-            aria-busy={isDecrypting}
-            aria-label="Save and download file"
-          >
-            {isDecrypting ? (
-              <>
-                <Spinner size={16} className="mr-2" /> Decrypting...
-              </>
-            ) : (
-              <>
-                <Download size={16} className="mr-2" /> Save &amp; Download
-              </>
-            )}
-          </button>
+        <div className="two-step-download-section" style={{ marginTop: 20 }}>
+          <div style={{
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--fg-muted)',
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}>
+            <Shield size={14} className="text-primary" />
+            <span>Two Independent Verification Steps</span>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 14,
+            marginBottom: 10
+          }}>
+            {/* Step 1: Preview in Browser (In-Memory, Max 2 Views) */}
+            <div style={{
+              padding: '16px',
+              borderRadius: '12px',
+              border: `1px solid ${isPrevExhausted ? 'var(--border-subtle, #e2e8f0)' : 'var(--border-default, #cbd5e1)'}`,
+              background: isPrevExhausted ? 'var(--bg-subtle, #f8fafc)' : 'var(--bg-surface, #ffffff)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              opacity: isPrevExhausted ? 0.7 : 1,
+              transition: 'var(--transition-fast, all 0.2s ease)'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--accent, #0066ff)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Step 1 • In-Memory Preview
+                  </span>
+                  <span className={`badge ${isPrevExhausted ? 'badge-slate' : 'badge-primary'}`} style={{ fontSize: '0.72rem' }}>
+                    {previewsRemaining} / {maxPreviews} Views Left
+                  </span>
+                </div>
+                <h5 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', fontWeight: 600 }}>
+                  Safe In-Browser Preview
+                </h5>
+                <p style={{ margin: '0 0 14px 0', fontSize: '0.78rem', color: 'var(--fg-muted)', lineHeight: 1.45 }}>
+                  Safely open and inspect files inside browser memory without saving to disk. Up to {maxPreviews} views allowed.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ width: '100%', justifyContent: 'center', minHeight: '42px' }}
+                onClick={() => onExecuteDownload(false, onPreviewReady)}
+                disabled={isDecrypting || isPrevExhausted}
+                title={isPrevExhausted ? 'Maximum 2 views used. Please proceed to Step 2 to save to disk.' : 'Inspect files safely in browser memory'}
+                aria-label="Preview files in browser memory"
+              >
+                {isDecrypting ? <Spinner size={16} className="mr-2" /> : <Eye size={16} className="mr-2" />}
+                <span>{isPrevExhausted ? '2/2 Views Used' : 'Preview Files (In-Memory)'}</span>
+              </button>
+            </div>
+
+            {/* Step 2: Download & Save to Disk (Max 2 Saves) */}
+            <div style={{
+              padding: '16px',
+              borderRadius: '12px',
+              border: '1px solid var(--accent, #0066ff)',
+              background: 'var(--bg-surface, #ffffff)',
+              boxShadow: '0 4px 16px rgba(0, 102, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              transition: 'var(--transition-fast, all 0.2s ease)'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--success-fg, #10b981)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Step 2 • Save to Disk
+                  </span>
+                  <span className="badge badge-emerald" style={{ fontSize: '0.72rem' }}>
+                    {downloadsRemaining} / {maxDownloads} Saves Left
+                  </span>
+                </div>
+                <h5 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', fontWeight: 600 }}>
+                  Download to Device
+                </h5>
+                <p style={{ margin: '0 0 14px 0', fontSize: '0.78rem', color: 'var(--fg-muted)', lineHeight: 1.45 }}>
+                  Download and save decrypted files to disk. Automatically self-destructs permanently after {maxDownloads} saves.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center', minHeight: '42px' }}
+                onClick={() => onExecuteDownload(true)}
+                disabled={isDecrypting || isDownExhausted}
+                aria-busy={isDecrypting}
+                aria-label="Save and download file to disk"
+              >
+                {isDecrypting ? (
+                  <>
+                    <Spinner size={16} className="mr-2" /> Decrypting...
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} className="mr-2" /> Save &amp; Download to Disk
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

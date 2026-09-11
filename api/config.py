@@ -83,14 +83,18 @@ def _get_int_env(key: str, default: int) -> int:
         return default
 
 MAX_FILE_SIZE = _get_int_env("MAX_FILE_SIZE", 1 * 1024 * 1024 * 1024)  # 1 GB Max File Size
-MAX_SYSTEM_STORAGE = _get_int_env("MAX_SYSTEM_STORAGE", 1 * 1024 * 1024 * 1024)  # 1 GB Global Storage Limit
-MAX_SYSTEM_USERS = _get_int_env("MAX_SYSTEM_USERS", 20)  # Maximum 20 concurrent users across system
+PER_USER_MAX_STORAGE = _get_int_env("PER_USER_MAX_STORAGE", 1 * 1024 * 1024 * 1024)  # 1 GB Per-User Storage Limit
+MAX_SYSTEM_STORAGE = _get_int_env("MAX_SYSTEM_STORAGE", 100 * 1024 * 1024 * 1024)  # Total system safety limit (100 GB)
+MAX_SYSTEM_USERS = _get_int_env("MAX_SYSTEM_USERS", 100)  # Maximum concurrent users across system
 MAX_FILES_PER_TRANSFER = _get_int_env("MAX_FILES_PER_TRANSFER", 20)  # Maximum 20 files per transfer
 MAX_REFRESHES_PER_SESSION = _get_int_env("MAX_REFRESHES_PER_SESSION", 5)
-MAX_PREVIEWS_PER_FILE = _get_int_env("MAX_PREVIEWS_PER_FILE", 100)
+MAX_PREVIEWS_PER_FILE = _get_int_env("MAX_PREVIEWS_PER_FILE", 2)  # Max 2 Views in browser memory
+DEFAULT_MAX_DOWNLOADS = _get_int_env("DEFAULT_MAX_DOWNLOADS", 2)  # Max 2 Saves to disk
+MAX_EXPIRY_HOURS = 24.0  # 24 hours maximum cap
+DEFAULT_EXPIRY_SECONDS = 60  # 60 seconds (1 min) default auto-wipe
 
 # ─── Background Cleanup & Storage Management ────────────────────────────────
-CLEANUP_INTERVAL_SECONDS = _get_int_env("CLEANUP_INTERVAL_SECONDS", 300)  # 5 min
+CLEANUP_INTERVAL_SECONDS = _get_int_env("CLEANUP_INTERVAL_SECONDS", 15)  # 15s fast sweep
 ORPHAN_GRACE_PERIOD_SECONDS = _get_int_env("ORPHAN_GRACE_PERIOD_SECONDS", 300)  # 5 min
 
 # ─── Request Rate Limiting (Sliding Window, per Client IP) ─────────────────
@@ -101,6 +105,7 @@ RATE_LIMITS = {
     "download": (_get_int_env("RATE_LIMIT_DOWNLOAD_MAX", 120), _get_int_env("RATE_LIMIT_DOWNLOAD_WINDOW", 60)),
     "preview": (_get_int_env("RATE_LIMIT_PREVIEW_MAX", 40), _get_int_env("RATE_LIMIT_PREVIEW_WINDOW", 60)),
     "delete": (_get_int_env("RATE_LIMIT_DELETE_MAX", 30), _get_int_env("RATE_LIMIT_DELETE_WINDOW", 60)),
+    "storage": (_get_int_env("RATE_LIMIT_STORAGE_MAX", 60), _get_int_env("RATE_LIMIT_STORAGE_WINDOW", 60)),
 }
 
 # ─── Server Host and Port ───────────────────────────────────────────────────
@@ -112,6 +117,7 @@ CORS_EXPOSE_HEADERS = [
     "Content-Length",
     "Content-Disposition",
     "Retry-After",
+    "X-File-ID",
     "X-Original-Name",
     "X-Compressed",
     "X-Burn-On-Read",
@@ -122,6 +128,10 @@ CORS_EXPOSE_HEADERS = [
     "X-Max-Refreshes",
     "X-Wrapped-Key",
     "X-Wrap-IV",
+    "X-Preview-Count",
+    "X-Previews-Remaining",
+    "X-Download-Count",
+    "X-Downloads-Remaining",
 ]
 
 # ─── Network — STUN/TURN Servers ────────────────────────────────────────────
