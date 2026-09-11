@@ -16,7 +16,7 @@
 
 ### 🌐 Live Application
 **Website:** [https://filesender-coral.vercel.app/](https://filesender-coral.vercel.app/)  
-**GitHub Repository:** [https://github.com/sujalkathait93-lab/filesender](https://github.com/sujalkathait93-lab/filesender)  
+**GitHub Repository:** [https://github.com/Sujalkathait/filesender](https://github.com/Sujalkathait/filesender)  
 **Architected & Built by:** **Sujal Kathait**  
 
 ![Website QR Code](website_qr.png)
@@ -218,7 +218,7 @@ graph TD
 ### 1. Start the Backend API (Port 8000)
 ```bash
 # Clone the repository
-git clone https://github.com/sujalkathait93-lab/filesender.git
+git clone https://github.com/Sujalkathait/filesender.git
 cd filesender
 
 # Create and activate virtual environment
