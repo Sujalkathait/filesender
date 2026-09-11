@@ -1,12 +1,12 @@
 import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, Download, ArrowRight, BookOpen, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Upload, Download, ArrowRight, ShieldCheck } from 'lucide-react';
 
 /**
  * Hero Section Component
- * Primary Responsibility: Landing hero header, security badge, headline value proposition, CTA buttons, and highlight chips.
+ * Primary Responsibility: Simple, production-grade landing hero with 2 primary actions.
  */
-export const HeroSection = memo(function HeroSection({ onScrollToSection }) {
+export const HeroSection = memo(function HeroSection() {
   return (
     <section className="hero" aria-label="Hero">
       <div className="hero-badge-container">
@@ -15,11 +15,10 @@ export const HeroSection = memo(function HeroSection({ onScrollToSection }) {
         </div>
       </div>
       <h1 className="hero-title">
-        Send Files Safely.<br />
-        <span className="hero-highlight">Send, Share and Done.</span>
+        Send Files Safely.
       </h1>
       <p className="hero-subtitle">
-        Hardware-accelerated browser encryption. Decryption keys never touch our servers. Instant codes, zero registrations.
+        Secure file sharing with simple, browser-based encryption.
       </p>
 
       <div className="cta-buttons">
@@ -29,34 +28,8 @@ export const HeroSection = memo(function HeroSection({ onScrollToSection }) {
         <Link to="/download" className="btn btn-secondary btn-lg">
           <Download size={18} /> Receive Files
         </Link>
-        <a
-          href="#how-to-use"
-          onClick={(e) => onScrollToSection(e, 'how-to-use')}
-          className="btn btn-outline btn-lg hero-guide-btn"
-        >
-          <BookOpen size={18} /> How to Use
-        </a>
-      </div>
-
-      {/* Quick Highlights Bar */}
-      <div className="highlights-bar">
-        <div className="highlight-item">
-          <CheckCircle2 size={15} />
-          <span>256 KB Slicing &amp; 2 MB Batches</span>
-        </div>
-        <div className="highlight-item">
-          <CheckCircle2 size={15} />
-          <span>Up to 1 GB Transfer</span>
-        </div>
-        <div className="highlight-item">
-          <CheckCircle2 size={15} />
-          <span>Direct-to-Disk Streaming</span>
-        </div>
-        <div className="highlight-item">
-          <CheckCircle2 size={15} />
-          <span>WebRTC P2P Direct</span>
-        </div>
       </div>
     </section>
   );
 });
+

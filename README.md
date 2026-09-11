@@ -17,6 +17,7 @@
 ### 🌐 Live Application
 **Website:** [https://filesender-coral.vercel.app/](https://filesender-coral.vercel.app/)  
 **GitHub Repository:** [https://github.com/sujalkathait93-lab/filesender](https://github.com/sujalkathait93-lab/filesender)  
+**Architected & Built by:** **Sujal Kathait**  
 
 ![Website QR Code](website_qr.png)
 
@@ -272,6 +273,13 @@ cd frontend && npm run build
 ```
 
 **Overall Test Results: 178 / 178 Passed (100% Pass Rate)**
+
+---
+
+## 👨‍💻 Author & Project Architect
+
+**Built by Sujal Kathait**  
+*FileShare — Send, Share and Done. Production-ready, zero-knowledge browser-encrypted file sharing.*
 
 ---
 

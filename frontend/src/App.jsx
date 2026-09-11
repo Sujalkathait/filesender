@@ -7,8 +7,6 @@ import { Navbar } from './components/layout/Navbar';
 import { MobileNav } from './components/layout/MobileNav';
 import { Footer } from './components/layout/Footer';
 import { HeroSection } from './components/home/HeroSection';
-import { StorageMeter } from './components/common/StorageMeter';
-
 import { useTheme } from './context/ThemeContext';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { api } from './services/api';
@@ -29,7 +27,6 @@ const DownloadPage = lazy(() => import('./pages/Download'));
 function HomePage({ onScrollToSection }) {
   return (
     <div className="home-page animate-in">
-      <StorageMeter />
       <HeroSection onScrollToSection={onScrollToSection} />
       <HowToUseSection />
     </div>

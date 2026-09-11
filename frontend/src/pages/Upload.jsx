@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, ArrowLeft, Lock, Trash2, History } from 'lucide-react';
+import { Upload, ArrowLeft, Lock, Trash2, History, ShieldCheck, Flame, Radio } from 'lucide-react';
 import { copyToClipboard } from '../crypto';
 import { TransferStateMachine, TransferState } from '../stateMachine';
 import { detectFileType } from '../utils/fileType';
@@ -276,6 +276,23 @@ function UploadPage() {
             onDrop={handleDrop}
             onFileSelect={handleFileSelect}
           />
+
+          {files.length === 0 && (
+            <div className="upload-trust-strip animate-in">
+              <div className="trust-strip-item">
+                <ShieldCheck size={15} className="text-primary" />
+                <span>Zero-Knowledge AES-256</span>
+              </div>
+              <div className="trust-strip-item">
+                <Flame size={15} className="text-amber-500" />
+                <span>Automatic Burn-After-Read</span>
+              </div>
+              <div className="trust-strip-item">
+                <Radio size={15} className="text-emerald-500" />
+                <span>Direct P2P or Cloud</span>
+              </div>
+            </div>
+          )}
 
           {files.length > 0 && (
             <div className="file-info animate-in">

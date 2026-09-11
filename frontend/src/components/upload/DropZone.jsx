@@ -26,14 +26,13 @@ export function DropZone({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      sectionLabel="Upload Document"
-      title={files.length > 0 ? `${files.length} file(s) selected` : 'Upload required document'}
+      title={files.length > 0 ? `${files.length} file(s) selected` : 'Upload your files'}
       subtitle={
         files.length > 0
           ? `${formatBytes(totalSelectedSize)} selected • ${files.length} of max 20 file(s)`
-          : 'Select up to 20 files • Up to 1 GB total'
+          : 'Up to 20 files • Up to 1 GB total'
       }
-      buttonText={files.length > 0 ? 'Add more files' : 'Select Document'}
+      buttonText={files.length > 0 ? 'Add more files' : 'Select Files'}
     />
   );
 }

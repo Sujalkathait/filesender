@@ -219,15 +219,18 @@ function DownloadPage() {
         />
       )}
 
-      {/* Empty State when idle */}
+      {/* Subtle security indicators when idle */}
       {!fileInfo && !isLoading && !error && !isExpired && !success && !isBurned && (
-        <EmptyState
-          icon={Search}
-          title="No active transfer selected"
-          description="Enter a 6-digit transfer code from the sender to connect, inspect file details, preview, and download."
-          actionText="Paste from Clipboard"
-          onAction={handlePasteClipboard}
-        />
+        <div className="upload-trust-strip animate-in">
+          <div className="trust-strip-item">
+            <ShieldAlert size={15} className="text-primary" />
+            <span>Browser-Based AES-256 Decryption</span>
+          </div>
+          <div className="trust-strip-item">
+            <Flame size={15} className="text-amber-500" />
+            <span>Permanent Auto-Purge Upon Download</span>
+          </div>
+        </div>
       )}
 
       {/* Active Download Details Card */}

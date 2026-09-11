@@ -36,166 +36,114 @@ export function VaultSettings({
 
   return (
     <div className="vault-settings" role="region" aria-label="Privacy and Expiry Settings">
-      <div className="vault-settings-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div className="vault-settings-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <ShieldCheck size={18} className="text-primary" />
-          <h4 className="settings-heading" style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
-            Sharing &amp; Privacy Options
+          <ShieldCheck size={16} className="text-primary" />
+          <h4 className="settings-heading" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>
+            Transfer &amp; Expiry Options
           </h4>
         </div>
         <button
           type="button"
           className="btn btn-ghost btn-xs"
           onClick={onOpenGuide}
-          style={{ fontSize: '0.775rem', gap: 4 }}
+          style={{ fontSize: '0.75rem', gap: 4 }}
           aria-label="Open feature guide"
         >
-          <HelpCircle size={14} /> Feature Guide
+          <HelpCircle size={13} /> Guide
         </button>
       </div>
 
-      {/* Burn-on-Read: Always Active Info Banner */}
-      <div
-        className="vault-option-card active"
-        style={{ cursor: 'default', pointerEvents: 'none' }}
-      >
-        <div className="option-card__content">
-          <div className="option-card__copy">
-            <div className="option-card__icon option-card__icon--danger">
-              <Flame size={18} />
-            </div>
+      {/* Compact Toggles Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8, marginBottom: 10 }}>
+        {/* Option: Steganography */}
+        <label
+          className={`compact-toggle-card ${useSteganography ? 'active' : ''}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            border: `1px solid ${useSteganography ? 'var(--accent, #0066ff)' : 'var(--border-default, #e2e8f0)'}`,
+            borderRadius: '8px',
+            background: useSteganography ? 'var(--accent-subtle, #eff6ff)' : 'var(--bg-surface, #f9fafb)',
+            cursor: isTransferring ? 'not-allowed' : 'pointer',
+            userSelect: 'none',
+            fontSize: '0.8125rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ImageIcon size={16} className="text-success" />
             <div>
-              <div className="option-card__title-row">
-                <strong className="option-card__title">2-Step Privacy &amp; Fast Auto-Clean (15s–3 min)</strong>
-                <span className="badge badge-amber">ACTIVE</span>
-              </div>
-              <span className="option-card__description">
-                Recipients can safely preview in browser memory up to 2 times. Downloads are limited to 2 saves before automatic permanent deletion. Active storage automatically wipes upon expiration (15s–3 min).
-              </span>
-            </div>
-          </div>
-          <ShieldCheck size={20} className="text-success" style={{ flexShrink: 0 }} />
-        </div>
-        <div className="vault-option-helper" style={{ pointerEvents: 'auto' }}>
-          <div className="vault-helper-pane" style={{ padding: '8px 12px', marginTop: 4 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.8rem', color: 'var(--fg-muted)' }}>
-              <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-              <span>Step 1 Preview (Max 2 Views) and Step 2 Download (Max 2 Saves) operate as strictly independent steps.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Option 2: Image Steganography */}
-      <div
-        className={`vault-option-card ${useSteganography ? 'active' : ''}`}
-        onClick={() => !isTransferring && setUseSteganography(!useSteganography)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !isTransferring && setUseSteganography(!useSteganography)}
-        aria-expanded={useSteganography}
-        style={{ marginTop: 10 }}
-      >
-        <div className="option-card__content">
-          <div className="option-card__copy">
-            <div className="option-card__icon option-card__icon--success">
-              <ImageIcon size={18} />
-            </div>
-            <div>
-              <div className="option-card__title-row">
-                <strong className="option-card__title">Steganography Image Vault</strong>
-                <span className="badge badge-emerald">STEALTH &lt;10MB</span>
-              </div>
-              <span className="option-card__description">
-                Conceals encrypted payload bytes inside standard PNG pixels to bypass inspection filters.
-              </span>
+              <div style={{ fontWeight: 600, color: 'var(--fg-default)' }}>Steganography Vault</div>
+              <div style={{ fontSize: '0.725rem', color: 'var(--fg-muted)' }}>Hide encrypted file in PNG image (&lt;10 MB)</div>
             </div>
           </div>
           <input
             type="checkbox"
             checked={useSteganography}
             disabled={isTransferring}
-            onChange={(e) => {
-              e.stopPropagation();
-              setUseSteganography(e.target.checked);
-            }}
-            className="option-checkbox"
-            aria-label="Steganography mode"
+            onChange={(e) => setUseSteganography(e.target.checked)}
+            style={{ accentColor: 'var(--accent, #0066ff)', marginLeft: 8 }}
           />
-        </div>
-      </div>
+        </label>
 
-      {/* Option 3: Direct P2P */}
-      <div
-        className={`vault-option-card ${useP2P ? 'active' : ''}`}
-        onClick={() => !isTransferring && setUseP2P(!useP2P)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !isTransferring && setUseP2P(!useP2P)}
-        aria-expanded={useP2P}
-        style={{ marginTop: 10 }}
-      >
-        <div className="option-card__content">
-          <div className="option-card__copy">
-            <div className="option-card__icon option-card__icon--primary">
-              <Radio size={18} />
-            </div>
+        {/* Option: Direct P2P */}
+        <label
+          className={`compact-toggle-card ${useP2P ? 'active' : ''}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            border: `1px solid ${useP2P ? 'var(--accent, #0066ff)' : 'var(--border-default, #e2e8f0)'}`,
+            borderRadius: '8px',
+            background: useP2P ? 'var(--accent-subtle, #eff6ff)' : 'var(--bg-surface, #f9fafb)',
+            cursor: isTransferring ? 'not-allowed' : 'pointer',
+            userSelect: 'none',
+            fontSize: '0.8125rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Radio size={16} className="text-primary" />
             <div>
-              <div className="option-card__title-row">
-                <strong className="option-card__title">Direct P2P Transfer (WebRTC)</strong>
-                <span className="badge badge-primary">ZERO SERVER DISK</span>
-              </div>
-              <span className="option-card__description">
-                Streams directly peer-to-peer between devices without storing files on intermediary servers.
-              </span>
+              <div style={{ fontWeight: 600, color: 'var(--fg-default)' }}>Direct P2P Stream</div>
+              <div style={{ fontSize: '0.725rem', color: 'var(--fg-muted)' }}>Direct WebRTC (zero server storage)</div>
             </div>
           </div>
           <input
             type="checkbox"
             checked={useP2P}
             disabled={isTransferring}
-            onChange={(e) => {
-              e.stopPropagation();
-              setUseP2P(e.target.checked);
-            }}
-            className="option-checkbox"
-            aria-label="Direct P2P transfer"
+            onChange={(e) => setUseP2P(e.target.checked)}
+            style={{ accentColor: 'var(--accent, #0066ff)', marginLeft: 8 }}
           />
-        </div>
+        </label>
       </div>
 
-      {/* ── CODE EXPIRY COUNTDOWN SELECTION (15s to 3 min) ── */}
-      <div className="expiry-selection-box" style={{
-        marginTop: 14,
-        padding: '14px 16px',
-        background: 'var(--bg-surface, #ffffff)',
+      {/* Compact Expiry Bar */}
+      <div style={{
+        padding: '10px 12px',
+        background: 'var(--bg-surface, #f9fafb)',
         border: '1px solid var(--border-default, #e2e8f0)',
-        borderRadius: '12px'
+        borderRadius: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Clock size={16} className="text-primary" />
-            <label htmlFor="expiry-select" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--fg-default)' }}>
-              Code Expiry Countdown
-            </label>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8125rem', fontWeight: 600 }}>
+            <Clock size={15} className="text-primary" />
+            <span>Expiry Countdown</span>
           </div>
-          <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
-            {currentPreset.label}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: 'var(--fg-muted)' }}>
+            <Flame size={14} className="text-amber-500" />
+            <span>Burn-after-read active</span>
+          </div>
         </div>
 
-        {/* Quick Selection Pills (15s up to 3 min) */}
-        <div
-          className="expiry-pills-row"
-          style={{
-            display: 'flex',
-            gap: 6,
-            flexWrap: 'wrap',
-            marginBottom: 10
-          }}
-          role="radiogroup"
-          aria-label="Expiry countdown options"
-        >
+        {/* Preset Pills */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="radiogroup" aria-label="Expiry countdown options">
           {EXPIRY_PRESETS.map((preset) => {
             const isSelected = expiryHours === preset.value;
             return (
@@ -207,16 +155,15 @@ export function VaultSettings({
                 disabled={isTransferring}
                 style={{
                   flex: '1 1 auto',
-                  minWidth: '58px',
-                  padding: '6px 10px',
-                  fontSize: '0.8rem',
+                  minWidth: '50px',
+                  padding: '5px 8px',
+                  fontSize: '0.775rem',
                   fontWeight: isSelected ? 600 : 500,
-                  borderRadius: '8px',
+                  borderRadius: '6px',
                   border: `1px solid ${isSelected ? 'var(--accent, #0066ff)' : 'var(--border-default, #e2e8f0)'}`,
-                  background: isSelected ? 'var(--accent-subtle, #eff6ff)' : 'var(--bg-subtle, #f8fafc)',
+                  background: isSelected ? 'var(--accent-subtle, #eff6ff)' : 'var(--bg-app, #ffffff)',
                   color: isSelected ? 'var(--accent, #0066ff)' : 'var(--fg-default)',
-                  cursor: isTransferring ? 'not-allowed' : 'pointer',
-                  transition: 'var(--transition-fast, all 0.15s ease)'
+                  cursor: isTransferring ? 'not-allowed' : 'pointer'
                 }}
                 aria-checked={isSelected}
                 role="radio"
@@ -225,35 +172,6 @@ export function VaultSettings({
               </button>
             );
           })}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-          <select
-            id="expiry-select"
-            value={expiryHours}
-            disabled={isTransferring}
-            onChange={(e) => setExpiryHours(Number(e.target.value))}
-            aria-label="Select code expiration countdown"
-            style={{
-              padding: '6px 10px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-default, #e2e8f0)',
-              background: 'var(--bg-app, #ffffff)',
-              color: 'var(--fg-default)',
-              fontSize: '0.85rem',
-              flex: 1
-            }}
-          >
-            {EXPIRY_PRESETS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.fullLabel}
-              </option>
-            ))}
-          </select>
-
-          <span style={{ fontSize: '0.78rem', color: 'var(--fg-muted)', flex: '1 1 100%' }}>
-            ⏱ {currentPreset.hint}. Files self-destruct on expiry. Choosing a short countdown helps free up global server storage for everyone!
-          </span>
         </div>
       </div>
     </div>

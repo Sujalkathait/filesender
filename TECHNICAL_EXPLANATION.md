@@ -1,5 +1,6 @@
 # FileShare Project — Complete Technical Explanation & Viva Guide
-### Master Reference for Project Presentations, Technical Vivavs, and Deep Learning
+### Master Reference for Project Presentations, Technical Vivas, and Deep Learning
+### 🚀 Architected & Built by Sujal Kathait
 
 > [!TIP]
 > - **[README.md](README.md)**: Main project overview, features, setup, and live demo.
@@ -486,3 +487,8 @@ FileShare is modeled against the industry-standard **STRIDE** security framework
     *Answer*: Browsers never send the URL hash fragment to web servers in HTTP requests. This preserves Zero-Knowledge security.
 50. **How many automated tests validate the FileShare codebase?**  
     *Answer*: **178 automated tests** (23 backend pytest tests and 155 frontend cryptographic, state machine, and optimizer tests) with a 100% pass rate.
+
+---
+
+### 🚀 Architected & Built by Sujal Kathait
+*FileShare — Send, Share and Done. Production-ready, zero-knowledge browser-encrypted file sharing.*

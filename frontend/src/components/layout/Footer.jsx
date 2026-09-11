@@ -17,25 +17,22 @@ export const Footer = memo(function Footer({ onScrollToSection }) {
             <span>FileShare</span>
           </div>
           <p className="footer-quote-text">
-            Zero-knowledge, browser-encrypted file sharing. Send, Share and Done.
+            FileShare &mdash; Secure, simple file sharing.
           </p>
         </div>
         <div className="footer-links">
-          <Link to="/"><Zap size={14} /> Home</Link>
-          <Link to="/upload"><Upload size={14} /> Send Files</Link>
-          <Link to="/download"><Download size={14} /> Receive Files</Link>
+          <Link to="/"><Zap size={13} /> Home</Link>
+          <Link to="/upload"><Upload size={13} /> Send Files</Link>
+          <Link to="/download"><Download size={13} /> Receive Files</Link>
           <Link to="/#how-to-use" onClick={(e) => onScrollToSection(e, 'how-to-use')}>
-            <BookOpen size={14} /> How to Use
-          </Link>
-          <Link to="/#features" onClick={(e) => onScrollToSection(e, 'features')}>
-            <Layers size={14} /> Features
+            <BookOpen size={13} /> How to Use
           </Link>
           <Link to="/#faq" onClick={(e) => onScrollToSection(e, 'faq')}>
-            <HelpCircle size={14} /> FAQ
+            <HelpCircle size={13} /> FAQ
           </Link>
         </div>
       </div>
-      <div className="footer-credits" style={{ textAlign: 'center', marginTop: '2rem', padding: '1rem', borderTop: '1px solid var(--border)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+      <div className="footer-credits">
         Built by Sujal Kathait
       </div>
     </footer>
